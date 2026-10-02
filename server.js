@@ -17,6 +17,10 @@ const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre l
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
 const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
+// Temáticas del modo cast (se elige una al azar al empezar). Para añadir otra, copia un bloque.
+const THEMES = [
+  { name: 'NEW GEN BLUE LOCK', roles: ['LOKI', 'DON LORENZO', 'SAE ITOSHI', 'MICHAEL KAISER', 'HUGO VIVIEN', 'TEDDY KNIGHT', 'BUNNY IGLESIAS'] }
+];
 const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
@@ -31,8 +35,9 @@ const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k) };
 const freeLeft = r => POOL[r.mode].filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
-const allDone = r => minCount(r) >= GOAL;
-const eligible = r => { const m = minCount(r); return m >= GOAL ? [] : r.players.filter(p => p.roster.length === m); };
+const goalOf = r => (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
+const allDone = r => minCount(r) >= goalOf(r);
+const eligible = r => { const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m); };
 
 function newCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -45,7 +50,7 @@ function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
-    goal: GOAL, round: allDone(r) ? GOAL : minCount(r) + 1,
+    gm: r.gm, theme: r.theme, goal: goalOf(r), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
     paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
@@ -53,7 +58,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -131,6 +136,14 @@ function startAuction(r) {
   push(r);
 }
 
+function autofill(r) { // los personajes sin puesto se colocan solos en los puestos vacíos
+  if (r.gm !== 'cast' || !r.theme) return;
+  r.players.forEach(p => {
+    const free = p.roster.filter(n => !Object.values(p.cast).includes(n));
+    r.theme.roles.forEach(role => { if (!p.cast[role] && free.length) p.cast[role] = free.shift(); });
+  });
+}
+
 function finishVote(r) {
   const tally = {};
   r.players.forEach(p => tally[p.id] = 0);
@@ -162,7 +175,7 @@ io.on('connection', s => {
       if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
       if (r.players.length >= MAXP) return cb({ err: 'Sala llena (máx. ' + MAXP + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
-      p = { id: 'p' + (++pidSeq), tok, name: nm, money: MONEY, roster: [], on: true, sid: null };
+      p = { id: 'p' + (++pidSeq), tok, name: nm, money: MONEY, roster: [], cast: {}, on: true, sid: null };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
     }
@@ -173,7 +186,7 @@ io.on('connection', s => {
 
   s.on('create', ({ name, tok }, cb) => {
     const r = {
-      code: newCode(), mode: 'f', auc: 'open', sealed: {}, reveal: null, dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
+      code: newCode(), mode: 'f', gm: 'std', theme: null, auc: 'open', sealed: {}, reveal: null, dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
       cur: null, bid: 0, bidder: null, last: null, offers: [], oid: 0, votes: {}, results: null,
       timer: null, endsAt: 0, hostId: null, gc: null
     };
@@ -194,12 +207,16 @@ io.on('connection', s => {
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
     if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k')) r.mode = d.mode;
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
+    if (r.phase === 'lobby' && (d.gm === 'std' || d.gm === 'cast')) r.gm = d.gm;
+    if (r.gm === 'cast' && r.mode !== 'k') r.gm = 'std'; // el cast solo existe con Frikirappers
     push(r);
   });
 
   s.on('start', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
-    if (freeLeft(r).length < r.players.length * GOAL) r.used.clear();
+    if (r.gm === 'cast' && r.mode !== 'k') r.gm = 'std';
+    r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)] : null;
+    if (freeLeft(r).length < r.players.length * goalOf(r)) r.used.clear();
     r.phase = 'idle';
     push(r);
   });
@@ -256,6 +273,17 @@ io.on('connection', s => {
     push(r);
   });
 
+  // ---- Cast ----
+  s.on('place', ({ name, role } = {}) => {
+    const { r, p } = ctxOf();
+    if (!r || !p || r.gm !== 'cast' || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
+    if (!p.roster.includes(name)) return;
+    if (role !== null && !r.theme.roles.includes(role)) return;
+    for (const k of Object.keys(p.cast)) if (p.cast[k] === name) delete p.cast[k];
+    if (role !== null) p.cast[role] = name; // si el puesto estaba ocupado, el anterior queda sin colocar
+    push(r);
+  });
+
   // ---- Intercambios ----
   s.on('offer', ({ to, give, want } = {}) => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'trade') return;
@@ -277,6 +305,8 @@ io.on('connection', s => {
       if (a && a.roster.includes(o.give) && b.roster.includes(o.want)) {
         a.roster[a.roster.indexOf(o.give)] = o.want;
         b.roster[b.roster.indexOf(o.want)] = o.give;
+        for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) a.cast[k] = o.want;
+        for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) b.cast[k] = o.give;
         r.offers = r.offers.filter(x => ![x.give, x.want].some(n => n === o.give || n === o.want));
       }
     }
@@ -286,6 +316,7 @@ io.on('connection', s => {
   // ---- Votación ----
   s.on('voteStart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'trade') return;
+    autofill(r);
     r.phase = 'vote'; r.votes = {}; r.offers = [];
     push(r);
   });
@@ -305,7 +336,8 @@ io.on('connection', s => {
   s.on('restart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
-    r.players.forEach(p => { p.money = MONEY; p.roster = []; });
+    r.players.forEach(p => { p.money = MONEY; p.roster = []; p.cast = {}; });
+    r.theme = null;
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);

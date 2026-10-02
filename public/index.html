@@ -85,6 +85,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <div id="hostLobby" class="hide">
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option></select>
+      <label for="gm">Modo de partida</label>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option></select>
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
@@ -140,6 +142,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 
   <!-- INTERCAMBIO / VOTACIÓN / FINAL -->
   <section id="endgame" class="hide"><div id="eg"></div></section>
+  <div id="castBox" class="box hide"></div>
 </main>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -151,7 +154,7 @@ if(!localStorage.tok)localStorage.tok=Math.random().toString(36).slice(2)+Date.n
 const tok=localStorage.tok;
 const socket=io();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-let pendSay=null,wasPaused=false;
+let pendSay=null,wasPaused=false,rank=[];
 let S=null,myId=null,ctx=null,master=null,burst=null,step=0,voices=[],cv=null,vt=null,giveChoice='',myVote='',endAt=0;
 
 /* ---------- AUDIO ---------- */
@@ -195,6 +198,11 @@ function applyPause(){
   if(p){if(ctx)ctx.suspend();if(ss)speechSynthesis.pause()}
   else{if(ctx)ctx.resume();if(ss)speechSynthesis.resume();if(pendSay){const a=pendSay;pendSay=null;say(a)}}
 }
+function stopMusic(){
+  clearInterval(burst);burst=null;
+  if(master){try{master.disconnect()}catch(e){}master=null}
+  $("stage").classList.remove("on");
+}
 function loadVoices(){voices=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang))}
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
 function say(a){
@@ -234,6 +242,7 @@ $('modo').onchange=()=>socket.emit('settings',{mode:$('modo').value});
 $('dif').onchange=()=>socket.emit('settings',{dif:+$('dif').value});
 $('dif2').onchange=()=>socket.emit('settings',{dif:+$('dif2').value});
 $('auc').onchange=()=>socket.emit('settings',{auc:$('auc').value});
+$('gm').onchange=()=>socket.emit('settings',{gm:$('gm').value});
 $('auc2').onchange=()=>socket.emit('settings',{auc:$('auc2').value});
 $('vol').oninput=()=>socket.emit('settings',{vol:+$('vol').value});
 $('vv').oninput=()=>socket.emit('settings',{vv:+$('vv').value});
@@ -260,7 +269,8 @@ $('eg').onclick=e=>{
   if(d.act==='ask'){if(!giveChoice)return;socket.emit('offer',{to:d.to,give:giveChoice,want:d.want})}
   else if(d.act==='acc')socket.emit('respond',{id:+d.id,ok:true});
   else if(d.act==='rej'||d.act==='cancel')socket.emit('respond',{id:+d.id,ok:false});
-  else if(d.act==='vote'){myVote=d.to;socket.emit('vote',d.to)}
+  else if(d.act==='up'||d.act==='down'){const i=+d.i,j=d.act==='up'?i-1:i+1;if(j>=0&&j<rank.length){[rank[i],rank[j]]=[rank[j],rank[i]];render()}}
+  else if(d.act==='sendrank')socket.emit('vote',rank);
   else if(d.act==='tovote')socket.emit('voteStart');
   else if(d.act==='vend')socket.emit('voteEnd');
   else if(d.act==='again'){myVote='';giveChoice='';socket.emit('restart')}
@@ -283,20 +293,24 @@ function render(){
   $('endgame').classList.toggle('hide',!['trade','vote','end'].includes(ph));
   if(master)master.gain.value=mg();
   if(ph!=='auction'&&burst)stopNoise();
+  if(ph==='auction'&&S.bidsOpen&&burst)stopMusic();
   applyPause();
+  if(ph==='lobby')rank=[];
+  renderCast();
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
     $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span></div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
-    setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);
+    setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
+    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';
     $('start').disabled=S.players.length<2;
     return;
   }
 
   if(['idle','auction','roulette','sold'].includes(ph)){
-    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal;
+    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.theme?' · '+S.theme.name:'');
     const elig=m&&m.eligible;
     let nm='…',st='',info='';
     if(ph==='idle')st=host?'Pulsa «Lanzar subasta».':'Esperando al anfitrión…';
@@ -376,6 +390,36 @@ function render(){
   renderEnd(m,host,ph);
 }
 
+function roleSfx(p,n){
+  if(S.gm!=='cast')return '';
+  const k=Object.keys(p.cast||{}).find(k=>p.cast[k]===n);
+  return k?' ('+k+')':'';
+}
+function rosterHtml(p){
+  if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
+  return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
+}
+function renderCast(){
+  const box=$('castBox'),m=me();
+  const show=!!(m&&S.gm==='cast'&&S.theme&&['idle','auction','roulette','sold','trade'].includes(S.phase));
+  box.classList.toggle('hide',!show);
+  if(!show||box.contains(document.activeElement))return;
+  let h='<b>Mi cast · '+esc(S.theme.name)+'</b><p><small>Coloca cada personaje que consigas en un puesto. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>';
+  S.theme.roles.forEach(role=>{
+    const cur=m.cast[role]||'';
+    h+='<div class="pl"><b>'+esc(role)+'</b><select data-role="'+esc(role)+'" style="width:58%"><option value="">— vacío —</option>'+
+      m.roster.map(n=>{const w=Object.keys(m.cast).find(k=>m.cast[k]===n&&k!==role);return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+(w?' · en '+esc(w):'')+'</option>'}).join('')+'</select></div>';
+  });
+  box.innerHTML=h;
+}
+$('castBox').onchange=e=>{
+  const sel=e.target,m=me();if(!sel.dataset||!sel.dataset.role||!m)return;
+  const role=sel.dataset.role,v=sel.value;
+  if(v)socket.emit('place',{name:v,role});
+  else if(m.cast[role])socket.emit('place',{name:m.cast[role],role:null});
+  sel.blur();
+};
+
 function renderEnd(m,host,ph){
   let h='';
   if(!m.roster.includes(giveChoice))giveChoice=m.roster[0]||'';
@@ -391,23 +435,37 @@ function renderEnd(m,host,ph){
       });
     }
   }
-  if(ph==='vote')h+='<h2>Votación</h2><p>Vota por quien tenga la mejor plantilla (no puedes votar por ti).</p>';
+  if(ph==='vote'){
+    const others=S.players.filter(p=>p.id!==myId).map(p=>p.id);
+    rank=rank.filter(id=>others.includes(id));others.forEach(id=>{if(!rank.includes(id))rank.push(id)});
+    const sent=S.voted.includes(myId);
+    h+='<h2>Votación</h2><p>Ordena a los demás del <b>peor</b> (arriba) al <b>mejor</b> (abajo) según su plantilla. Tú no te incluyes.</p><small>👎 PEOR</small>';
+    rank.forEach((id,i)=>{
+      const p=S.players.find(x=>x.id===id);if(!p)return;
+      h+='<div class="card"><div class="row"><div style="flex:1"><b>'+(i+1)+'. '+esc(p.name)+'</b>'+(S.voted.includes(p.id)?' · votó ✔':'')+'<div>'+rosterHtml(p)+'</div></div>'+
+        (sent?'':'<div><button class="sm alt" data-act="up" data-i="'+i+'"'+(i===0?' disabled':'')+'>▲</button><button class="sm alt" data-act="down" data-i="'+i+'"'+(i===rank.length-1?' disabled':'')+'>▼</button></div>')+'</div></div>';
+    });
+    h+='<small>👑 MEJOR</small>';
+    h+=sent?'<p><b>Ranking enviado ✔.</b> Esperando a los demás ('+S.voted.length+' de '+S.players.filter(p=>p.on).length+')…</p>':'<div><button data-act="sendrank">Enviar ranking</button></div>';
+    h+='<h2>Tu plantilla</h2>';
+  }
   if(ph==='end'&&S.results){
     const R=S.results;
     const win=R.winners.map(nameOf);
     h+='<h2>🏆 '+(win.length?(win.length>1?'Empate: ':'Ganador: ')+esc(win.join(' y ')):'Sin votos')+'</h2>';
   }
   const order=ph==='end'&&S.results?[...S.players].sort((a,b)=>S.results.tally[b.id]-S.results.tally[a.id]):S.players;
-  order.forEach(p=>{
+  (ph==='vote'?S.players.filter(p=>p.id===myId):order).forEach(p=>{
     const isMe=p.id===myId;
     const win=ph==='end'&&S.results&&S.results.winners.includes(p.id);
-    h+='<div class="card'+(win?' win':'')+'"><b>'+esc(p.name)+'</b>'+(isMe?' (tú)':'')+(p.id===S.hostId?' 👑':'')+' · '+p.money+'$';
-    if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' voto(s)</b>';
+    h+='<div class="card'+(win?' win':'')+'"><b>'+(ph==='end'&&S.results?'#'+(1+order.filter(q=>S.results.tally[q.id]>S.results.tally[p.id]).length)+' ':'')+esc(p.name)+'</b>'+(isMe?' (tú)':'')+(p.id===S.hostId?' 👑':'')+' · '+p.money+'$';
+    if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
     if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
     h+='<div>';
-    p.roster.forEach(n=>{
-      if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+'</button>';
-      else h+='<span class="chip">'+esc(n)+'</span>';
+    if(S.gm==='cast'&&ph!=='trade')h+=rosterHtml(p);
+    else p.roster.forEach(n=>{
+      if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+roleSfx(p,n)+'</button>';
+      else h+='<span class="chip">'+esc(n)+roleSfx(p,n)+'</span>';
     });
     h+='</div>';
     if(ph==='vote'&&!isMe)h+='<button class="sm'+(myVote===p.id?' sel':'')+'" data-act="vote" data-to="'+esc(p.id)+'">'+(myVote===p.id?'Tu voto ✔':'Votar')+'</button>';
