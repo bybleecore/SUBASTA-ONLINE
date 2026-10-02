@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Subasta a sordas · Online</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#2A1B5E">
+<link rel="icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Work+Sans:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#2A1B5E;--ink:#F7F0E3;--y:#FFD23F;--r:#E8383D;--card:#3A2878;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -82,6 +85,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <div id="hostLobby" class="hide">
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option></select>
+      <label for="auc">Tipo de subasta</label>
+      <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
       <select id="dif"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
       <button id="start">Empezar partida</button>
@@ -101,7 +106,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     </div>
 
     <div id="bidBox" class="box hide">
-      <div>
+      <div id="qb">
         <button id="bq1">+1</button><button id="bq5">+5</button><button id="bq10">+10</button>
       </div>
       <div class="row">
@@ -117,6 +122,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <input id="vol" type="range" min="0" max="100" value="70">
       <label for="vv">Volumen de la voz</label>
       <input id="vv" type="range" min="1" max="100" value="25">
+      <label for="auc2">Tipo de subasta (para la próxima)</label>
+      <select id="auc2"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif2">Dificultad</label>
       <select id="dif2"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
       <div style="margin-top:10px">
@@ -141,6 +148,7 @@ const LV=[{v:1,r:1,st:3},{v:.7,r:1.25,st:2},{v:.5,r:1.5,st:1}];
 if(!localStorage.tok)localStorage.tok=Math.random().toString(36).slice(2)+Date.now().toString(36);
 const tok=localStorage.tok;
 const socket=io();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 let S=null,myId=null,ctx=null,master=null,burst=null,step=0,voices=[],cv=null,vt=null,giveChoice='',myVote='',endAt=0;
 
 /* ---------- AUDIO ---------- */
@@ -215,12 +223,24 @@ $('start').onclick=()=>socket.emit('start');
 $('modo').onchange=()=>socket.emit('settings',{mode:$('modo').value});
 $('dif').onchange=()=>socket.emit('settings',{dif:+$('dif').value});
 $('dif2').onchange=()=>socket.emit('settings',{dif:+$('dif2').value});
+$('auc').onchange=()=>socket.emit('settings',{auc:$('auc').value});
+$('auc2').onchange=()=>socket.emit('settings',{auc:$('auc2').value});
 $('vol').oninput=()=>socket.emit('settings',{vol:+$('vol').value});
 $('vv').oninput=()=>socket.emit('settings',{vv:+$('vv').value});
 $('next').onclick=()=>socket.emit('next');
 $('rep').onclick=()=>socket.emit('repeat');
 [1,5,10].forEach(n=>$('bq'+n).onclick=()=>socket.emit('bid',S.bid+n));
-$('bidGo').onclick=()=>{const v=Math.floor(+$('bidIn').value);if(v>0){socket.emit('bid',v);$('bidIn').value=''}};
+let lastSent=null,spin=0;
+$('bidGo').onclick=()=>{
+  const raw=$('bidIn').value;if(raw==='')return;
+  const v=Math.floor(+raw),m=me();
+  if(S&&S.auc==='blind'){
+    if(!(v>=0)||!m||v>m.money)return;
+    if(!confirm('¿Enviar '+v+'$ a ciegas? No se puede cambiar.'))return;
+    lastSent=v;socket.emit('bid',v);$('bidIn').value='';return;
+  }
+  if(v>0){socket.emit('bid',v);$('bidIn').value=''}
+};
 $('bidIn').onkeydown=e=>{if(e.key==='Enter')$('bidGo').click()};
 
 $('eg').onclick=e=>{
@@ -247,7 +267,7 @@ function render(){
   $('codeLbl').textContent='Sala '+S.code;
   $('me').textContent=m?m.name+' · '+m.money+'$':'';
   $('lobby').classList.toggle('hide',ph!=='lobby');
-  $('game').classList.toggle('hide',!['idle','auction','sold'].includes(ph));
+  $('game').classList.toggle('hide',!['idle','auction','roulette','sold'].includes(ph));
   $('endgame').classList.toggle('hide',!['trade','vote','end'].includes(ph));
   if(master)master.gain.value=mg();
   if(ph!=='auction'&&burst)stopNoise();
@@ -257,51 +277,76 @@ function render(){
     $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span></div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
-    setVal($('modo'),S.mode);setVal($('dif'),S.dif);
+    setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);
     $('start').disabled=S.players.length<2;
     return;
   }
 
-  if(['idle','auction','sold'].includes(ph)){
+  if(['idle','auction','roulette','sold'].includes(ph)){
     $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal;
     const elig=m&&m.eligible;
     let nm='…',st='',info='';
     if(ph==='idle')st=host?'Pulsa «Lanzar subasta».':'Esperando al anfitrión…';
+    const blind=S.auc==='blind';
+    if(ph!=='auction')lastSent=null;
+    const bidsTxt=bs=>Object.entries(bs).sort((x,y)=>y[1]-x[1]).map(([id,a])=>nameOf(id)+': '+a+'$').join(' · ');
     if(ph==='auction'){
       nm='¿Quién es?';
-      st=elig?'Escucha y puja. Solo puedes comprar uno por ronda.':'Ya compraste en esta ronda: escucha y espera.';
-      info=S.bidder?'Mejor puja: '+S.bid+'$ · '+esc(nameOf(S.bidder)):'Nadie ha pujado todavía';
+      if(blind){
+        const pend=S.players.filter(p=>p.eligible&&!S.sealed.includes(p.id)).map(p=>p.name);
+        st=elig?(S.sealed.includes(myId)?'Oferta enviada 🔒. Espera a los demás.':'Escucha y haz UNA oferta secreta. Solo puedes comprar uno por ronda.'):'Ya compraste en esta ronda: escucha y espera.';
+        info='🔒 A ciegas · ofertas enviadas: '+S.sealed.length+(pend.length?' · faltan: '+pend.join(', '):'');
+      }else{
+        st=elig?'Escucha y puja. Solo puedes comprar uno por ronda.':'Ya compraste en esta ronda: escucha y espera.';
+        info=S.bidder?'Mejor puja: '+S.bid+'$ · '+nameOf(S.bidder):'Nadie ha pujado todavía';
+      }
+    }
+    if(ph==='roulette'&&S.reveal){
+      nm='🎰';
+      const tie=S.reveal.tie||[];
+      st='¡Empate a '+Math.max(...Object.values(S.reveal.bids))+'$ entre '+tie.map(nameOf).join(' y ')+'! Girando la ruleta…';
+      info='Ofertas: '+bidsTxt(S.reveal.bids);
     }
     if(ph==='sold'&&S.last){
       const w=nameOf(S.last.winner),l=S.last;
       nm=l.name;
-      st=l.how==='bid'?w+' se lo lleva por '+l.price+'$':l.how==='free'?'Nadie pujó: '+w+' se lo lleva gratis':w+' era el último de la ronda y se lo lleva por '+l.price+'$';
+      st=l.how==='bid'?w+' se lo lleva por '+l.price+'$':l.how==='blind'?w+' se lo lleva por '+l.price+'$ (oferta a ciegas'+(l.tie?', ganó en la ruleta':'')+')':l.how==='free'?'Nadie pujó: '+w+' se lo lleva gratis':w+' era el último de la ronda y se lo lleva por '+l.price+'$';
+      if(l.bids)info='Ofertas: '+bidsTxt(l.bids);
     }
     $('name').textContent=nm;
     $('status').textContent=st;
     $('bidInfo').textContent=info;
-    $('bidInfo').textContent=info;
 
     const showBid=ph==='auction'&&elig;
     $('bidBox').classList.toggle('hide',!showBid);
+    $('qb').classList.toggle('hide',blind);
     if(showBid){
-      const top=S.bidder===myId;
-      [1,5,10].forEach(n=>$('bq'+n).disabled=top||S.bid+n>m.money);
-      $('bidGo').disabled=top;
-      $('bidNote').textContent=top?'Vas ganando. Espera…':'Tienes '+m.money+'$. Puja mínima: '+(S.bid+1)+'$';
+      if(blind){
+        const sent=S.sealed.includes(myId);
+        $('bidIn').disabled=sent;$('bidGo').disabled=sent;
+        $('bidGo').textContent='Enviar oferta';
+        $('bidIn').placeholder='Tu oferta (0 a '+m.money+'$)';
+        $('bidNote').textContent=sent?'Tu oferta: '+(lastSent!==null?lastSent+'$':'enviada')+' 🔒':'Tienes '+m.money+'$. Una sola oferta: nadie la verá y no se puede cambiar.';
+      }else{
+        const top=S.bidder===myId;
+        $('bidIn').disabled=false;$('bidGo').textContent='Pujar';$('bidIn').placeholder='Otra cantidad';
+        [1,5,10].forEach(n=>$('bq'+n).disabled=top||S.bid+n>m.money);
+        $('bidGo').disabled=top;
+        $('bidNote').textContent=top?'Vas ganando. Espera…':'Tienes '+m.money+'$. Puja mínima: '+(S.bid+1)+'$';
+      }
     }
 
     $('hostBox').classList.toggle('hide',!host);
     if(host){
-      setVal($('vol'),S.vol);setVal($('vv'),S.vv);setVal($('dif2'),S.dif);
+      setVal($('vol'),S.vol);setVal($('vv'),S.vv);setVal($('dif2'),S.dif);setVal($('auc2'),S.auc);
       const done=S.players.every(p=>p.roster.length>=S.goal);
       $('next').textContent=done?'Ir a intercambios':(ph==='idle'?'Lanzar subasta':'Siguiente subasta');
-      $('next').disabled=ph==='auction';
+      $('next').disabled=ph==='auction'||ph==='roulette';
       $('rep').disabled=ph!=='auction';
     }
 
     $('board').innerHTML=S.players.map(p=>{
-      const tag=p.eligible?(ph==='auction'&&S.bidder===p.id?'🔥 va ganando':'puja'):'✔ fuera';
+      const tag=p.eligible?(ph==='auction'&&blind&&S.sealed.includes(p.id)?'🔒 ya ofertó':ph==='auction'&&!blind&&S.bidder===p.id?'🔥 va ganando':'puja'):'✔ fuera';
       return '<div class="pl"><div><b>'+esc(p.name)+'</b>'+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+(p.on?'':' ⚠ sin conexión')+
         '<br><small>'+(p.roster.map(esc).join(' · ')||'—')+'</small></div>'+
         '<div style="text-align:right">'+p.money+'$<br><small>'+p.roster.length+'/'+S.goal+' · '+tag+'</small></div></div>';
@@ -357,6 +402,7 @@ function renderEnd(m,host,ph){
 }
 
 setInterval(()=>{
+  if(S&&S.phase==='roulette'&&S.reveal&&S.reveal.tie){$('timer').textContent='';$('name').textContent='🎰 '+nameOf(S.reveal.tie[spin++%S.reveal.tie.length]);return}
   if(!S||S.phase!=='auction'){$('timer').textContent='';return}
   $('timer').textContent=(Math.max(0,endAt-performance.now())/1000).toFixed(1)+' s';
 },100);

@@ -16,6 +16,8 @@ const MONEY = 50;        // dinero inicial
 const FIRST_MS = 25000;  // tiempo para la primera puja
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
+const BLIND_MS = 30000;  // tiempo para enviar la oferta a ciegas
+const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
 const bySock = {};
@@ -45,7 +47,10 @@ function view(r) {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
     goal: GOAL, round: allDone(r) ? GOAL : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
-    ms: r.phase === 'auction' ? Math.max(0, r.endsAt - Date.now()) : 0,
+    ms: ['auction', 'roulette'].includes(r.phase) ? Math.max(0, r.endsAt - Date.now()) : 0,
+    auc: r.auc,
+    sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
+    reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
     players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
@@ -67,13 +72,32 @@ function sell(r, p, price, how) {
   clearTimeout(r.timer);
   p.money -= price;
   p.roster.push(r.cur);
-  r.last = { name: r.cur, winner: p.id, price, how };
+  r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
   push(r);
 }
 
+function closeBlind(r) {
+  if (r.phase !== 'auction') return;
+  clearTimeout(r.timer);
+  const ids = Object.keys(r.sealed);
+  const max = Math.max(...ids.map(i => r.sealed[i]));
+  const top = ids.filter(i => r.sealed[i] === max);
+  r.reveal = { bids: { ...r.sealed }, tie: top.length > 1 ? top : null };
+  if (top.length > 1) { // empate: ruleta entre los empatados
+    const winner = top[Math.floor(Math.random() * top.length)];
+    r.phase = 'roulette';
+    r.endsAt = Date.now() + ROULETTE_MS;
+    push(r);
+    r.timer = setTimeout(() => sell(r, find(r, winner), max, 'blind'), ROULETTE_MS);
+  } else {
+    sell(r, find(r, top[0]), max, 'blind');
+  }
+}
+
 function close(r) {
   if (r.phase !== 'auction') return;
+  if (r.auc === 'blind' && Object.keys(r.sealed).length) return closeBlind(r);
   if (r.bidder) return sell(r, find(r, r.bidder), r.bid, 'bid');
   // nadie pujó: se lo lleva gratis un jugador elegible al azar
   const el = eligible(r);
@@ -86,13 +110,15 @@ function startAuction(r) {
   const el = eligible(r);
   r.cur = pickName(r);
   r.bid = 0; r.bidder = null; r.last = null;
+  r.sealed = {}; r.reveal = null;
   if (el.length === 1) { // el último de la ronda: compra directa a 1$
     return sell(r, el[0], Math.min(1, el[0].money), 'solo');
   }
   r.phase = 'auction';
-  r.endsAt = Date.now() + FIRST_MS;
+  const ms = r.auc === 'blind' ? BLIND_MS : FIRST_MS;
+  r.endsAt = Date.now() + ms;
   clearTimeout(r.timer);
-  r.timer = setTimeout(() => close(r), FIRST_MS);
+  r.timer = setTimeout(() => close(r), ms);
   io.to(r.code).emit('play', {
     text: spoken(r.cur),
     pitch: 0.85 + Math.random() * 0.3,
@@ -144,7 +170,7 @@ io.on('connection', s => {
 
   s.on('create', ({ name, tok }, cb) => {
     const r = {
-      code: newCode(), mode: 'f', dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
+      code: newCode(), mode: 'f', auc: 'open', sealed: {}, reveal: null, dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
       cur: null, bid: 0, bidder: null, last: null, offers: [], oid: 0, votes: {}, results: null,
       timer: null, endsAt: 0, hostId: null, gc: null
     };
@@ -164,6 +190,7 @@ io.on('connection', s => {
     if (typeof d.vv === 'number') r.vv = clamp(d.vv, 1, 100);
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
     if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k')) r.mode = d.mode;
+    if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
     push(r);
   });
 
@@ -188,6 +215,12 @@ io.on('connection', s => {
   s.on('bid', n => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'auction') return;
     n = Math.floor(+n);
+    if (r.auc === 'blind') { // oferta secreta: una sola vez, sin cambios
+      if (!(n >= 0) || n > p.money || !eligible(r).includes(p) || p.id in r.sealed) return;
+      r.sealed[p.id] = n;
+      if (eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
+      return push(r);
+    }
     if (!(n > r.bid) || n > p.money || !eligible(r).includes(p) || r.bidder === p.id) return;
     r.bid = n; r.bidder = p.id;
     const left = Math.max(BID_MS, r.endsAt - Date.now());
@@ -261,6 +294,7 @@ io.on('connection', s => {
     if (!r.players.some(q => q.on)) {
       r.gc = setTimeout(() => { clearTimeout(r.timer); delete rooms[r.code]; }, 10 * 60 * 1000);
     } else {
+      if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
       if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
       push(r);
     }
