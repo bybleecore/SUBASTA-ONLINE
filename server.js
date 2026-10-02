@@ -23,6 +23,10 @@ let pidSeq = 0;
 
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const spoken = n => n.replace(/\(.*?\)/g, '').replace('$', '').replace(/\./g, ' ').trim();
+const key = n => spoken(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+const dedupe = arr => { const seen = new Set(); return arr.filter(n => { const k = key(n); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
+const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k) };
+const freeLeft = r => POOL[r.mode].filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
 const allDone = r => minCount(r) >= GOAL;
@@ -52,10 +56,10 @@ function view(r) {
 function push(r) { io.to(r.code).emit('state', view(r)); }
 
 function pickName(r) {
-  const pool = NAMES[r.mode].filter(n => !r.used.has(n));
-  const src = pool.length ? pool : NAMES[r.mode];
-  const n = src[Math.floor(Math.random() * src.length)];
-  r.used.add(n);
+  let pool = freeLeft(r);
+  if (!pool.length) { r.used.clear(); pool = POOL[r.mode]; } // solo si se agotaron todos
+  const n = pool[Math.floor(Math.random() * pool.length)];
+  r.used.add(key(n));
   return n;
 }
 
@@ -165,6 +169,7 @@ io.on('connection', s => {
 
   s.on('start', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
+    if (freeLeft(r).length < r.players.length * GOAL) r.used.clear();
     r.phase = 'idle';
     push(r);
   });
@@ -241,7 +246,7 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
     r.players.forEach(p => { p.money = MONEY; p.roster = []; });
-    r.used.clear(); r.offers = []; r.votes = {}; r.results = null; r.last = null;
+    r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);
   });
