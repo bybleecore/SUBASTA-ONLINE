@@ -13,10 +13,10 @@ app.get('/health', (q, res) => res.send('ok'));
 const MAXP = 8;          // máximo de jugadores por sala
 const GOAL = 4;          // personajes que hay que conseguir
 const MONEY = 50;        // dinero inicial
-const FIRST_MS = 25000;  // tiempo para la primera puja
+const OPEN_MS = 15000;   // segundos para ofertar desde que el anfitrión abre las ofertas
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
-const BLIND_MS = 30000;  // tiempo para enviar la oferta a ciegas
+const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
 const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
@@ -47,7 +47,8 @@ function view(r) {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
     goal: GOAL, round: allDone(r) ? GOAL : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
-    ms: ['auction', 'roulette'].includes(r.phase) ? Math.max(0, r.endsAt - Date.now()) : 0,
+    ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
+    paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
     auc: r.auc,
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
@@ -70,6 +71,7 @@ function pickName(r) {
 
 function sell(r, p, price, how) {
   clearTimeout(r.timer);
+  r.paused = false; r.bidsOpen = false;
   p.money -= price;
   p.roster.push(r.cur);
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
@@ -115,13 +117,13 @@ function startAuction(r) {
     return sell(r, el[0], Math.min(1, el[0].money), 'solo');
   }
   r.phase = 'auction';
-  const ms = r.auc === 'blind' ? BLIND_MS : FIRST_MS;
-  r.endsAt = Date.now() + ms;
+  // las ofertas NO se abren solas: las abre el anfitrión (s.on('openBids'))
+  r.bidsOpen = false; r.paused = false; r.plays = 1; r.endsAt = 0;
   clearTimeout(r.timer);
-  r.timer = setTimeout(() => close(r), ms);
+  r.lastPitch = 0.85 + Math.random() * 0.3;
   io.to(r.code).emit('play', {
     text: spoken(r.cur),
-    pitch: 0.85 + Math.random() * 0.3,
+    pitch: r.lastPitch,
     delay: 1200 + Math.random() * DELAY[r.dif] * 1000,
     rep: false
   });
@@ -208,12 +210,35 @@ io.on('connection', s => {
   });
 
   s.on('repeat', () => {
+    const { r } = hostCtx(); if (!r || r.phase !== 'auction' || r.paused || r.plays >= MAX_PLAYS) return;
+    r.plays++;
+    io.to(r.code).emit('play', { text: r.lastAudioText, pitch: r.lastPitch || 1, delay: 0, rep: true });
+    push(r);
+  });
+
+  s.on('openBids', () => {
+    const { r } = hostCtx(); if (!r || r.phase !== 'auction' || r.bidsOpen || r.paused) return;
+    r.bidsOpen = true;
+    r.endsAt = Date.now() + OPEN_MS;
+    clearTimeout(r.timer);
+    r.timer = setTimeout(() => close(r), OPEN_MS);
+    push(r);
+  });
+
+  s.on('pause', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'auction') return;
-    io.to(r.code).emit('play', { text: r.lastAudioText, pitch: 1, delay: 0, rep: true });
+    if (!r.paused) {
+      r.paused = true;
+      if (r.bidsOpen) { r.pausedLeft = Math.max(0, r.endsAt - Date.now()); clearTimeout(r.timer); }
+    } else {
+      r.paused = false;
+      if (r.bidsOpen) { r.endsAt = Date.now() + r.pausedLeft; r.timer = setTimeout(() => close(r), r.pausedLeft); }
+    }
+    push(r);
   });
 
   s.on('bid', n => {
-    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'auction') return;
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'auction' || !r.bidsOpen || r.paused) return;
     n = Math.floor(+n);
     if (r.auc === 'blind') { // oferta secreta: una sola vez, sin cambios
       if (!(n >= 0) || n > p.money || !eligible(r).includes(p) || p.id in r.sealed) return;

@@ -128,6 +128,8 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <select id="dif2"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
       <div style="margin-top:10px">
         <button id="next">Lanzar subasta</button>
+        <button id="opn">Abrir ofertas</button>
+        <button id="pau" class="alt">Pausar sonido</button>
         <button id="rep" class="alt">Repetir voz</button>
       </div>
     </div>
@@ -149,6 +151,7 @@ if(!localStorage.tok)localStorage.tok=Math.random().toString(36).slice(2)+Date.n
 const tok=localStorage.tok;
 const socket=io();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+let pendSay=null,wasPaused=false;
 let S=null,myId=null,ctx=null,master=null,burst=null,step=0,voices=[],cv=null,vt=null,giveChoice='',myVote='',endAt=0;
 
 /* ---------- AUDIO ---------- */
@@ -181,9 +184,16 @@ function startNoise(){
 function stopNoise(){
   clearInterval(burst);burst=null;
   if(master){try{master.disconnect()}catch(e){}master=null}
-  clearTimeout(vt);
-  if('speechSynthesis' in window)speechSynthesis.cancel();
+  clearTimeout(vt);pendSay=null;
+  if('speechSynthesis' in window){speechSynthesis.cancel();speechSynthesis.resume()}
   $("stage").classList.remove("on");
+}
+function applyPause(){
+  const p=!!(S&&S.phase==='auction'&&S.paused);
+  if(p===wasPaused)return;wasPaused=p;
+  const ss='speechSynthesis' in window;
+  if(p){if(ctx)ctx.suspend();if(ss)speechSynthesis.pause()}
+  else{if(ctx)ctx.resume();if(ss)speechSynthesis.resume();if(pendSay){const a=pendSay;pendSay=null;say(a)}}
 }
 function loadVoices(){voices=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang))}
 if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
@@ -199,7 +209,7 @@ function say(a){
 socket.on('play',a=>{
   if(!a.rep){startNoise();cv=voices.length?voices[Math.floor(Math.random()*voices.length)]:null}
   clearTimeout(vt);
-  vt=setTimeout(()=>say(a),a.delay);
+  vt=setTimeout(()=>{if(S&&S.paused)pendSay=a;else say(a)},a.delay);
 });
 $('snd').onclick=()=>{unlock();if(S&&S.phase==='auction')return;startNoise();setTimeout(stopNoise,700)};
 
@@ -229,6 +239,8 @@ $('vol').oninput=()=>socket.emit('settings',{vol:+$('vol').value});
 $('vv').oninput=()=>socket.emit('settings',{vv:+$('vv').value});
 $('next').onclick=()=>socket.emit('next');
 $('rep').onclick=()=>socket.emit('repeat');
+$('opn').onclick=()=>socket.emit('openBids');
+$('pau').onclick=()=>socket.emit('pause');
 [1,5,10].forEach(n=>$('bq'+n).onclick=()=>socket.emit('bid',S.bid+n));
 let lastSent=null,spin=0;
 $('bidGo').onclick=()=>{
@@ -271,6 +283,7 @@ function render(){
   $('endgame').classList.toggle('hide',!['trade','vote','end'].includes(ph));
   if(master)master.gain.value=mg();
   if(ph!=='auction'&&burst)stopNoise();
+  applyPause();
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
@@ -300,6 +313,8 @@ function render(){
         st=elig?'Escucha y puja. Solo puedes comprar uno por ronda.':'Ya compraste en esta ronda: escucha y espera.';
         info=S.bidder?'Mejor puja: '+S.bid+'$ · '+nameOf(S.bidder):'Nadie ha pujado todavía';
       }
+      if(!S.bidsOpen){st='Escucha: el anfitrión abrirá las ofertas (tendréis '+Math.round(S.openMs/1000)+' s).';info='Ofertas cerradas';}
+      if(S.paused)st='⏸ En pausa. '+st;
     }
     if(ph==='roulette'&&S.reveal){
       nm='🎰';
@@ -317,21 +332,21 @@ function render(){
     $('status').textContent=st;
     $('bidInfo').textContent=info;
 
-    const showBid=ph==='auction'&&elig;
+    const showBid=ph==='auction'&&elig&&S.bidsOpen;
     $('bidBox').classList.toggle('hide',!showBid);
     $('qb').classList.toggle('hide',blind);
     if(showBid){
       if(blind){
         const sent=S.sealed.includes(myId);
-        $('bidIn').disabled=sent;$('bidGo').disabled=sent;
+        $('bidIn').disabled=sent||S.paused;$('bidGo').disabled=sent||S.paused;
         $('bidGo').textContent='Enviar oferta';
         $('bidIn').placeholder='Tu oferta (0 a '+m.money+'$)';
         $('bidNote').textContent=sent?'Tu oferta: '+(lastSent!==null?lastSent+'$':'enviada')+' 🔒':'Tienes '+m.money+'$. Una sola oferta: nadie la verá y no se puede cambiar.';
       }else{
         const top=S.bidder===myId;
-        $('bidIn').disabled=false;$('bidGo').textContent='Pujar';$('bidIn').placeholder='Otra cantidad';
-        [1,5,10].forEach(n=>$('bq'+n).disabled=top||S.bid+n>m.money);
-        $('bidGo').disabled=top;
+        $('bidIn').disabled=S.paused;$('bidGo').textContent='Pujar';$('bidIn').placeholder='Otra cantidad';
+        [1,5,10].forEach(n=>$('bq'+n).disabled=top||S.paused||S.bid+n>m.money);
+        $('bidGo').disabled=top||S.paused;
         $('bidNote').textContent=top?'Vas ganando. Espera…':'Tienes '+m.money+'$. Puja mínima: '+(S.bid+1)+'$';
       }
     }
@@ -342,7 +357,12 @@ function render(){
       const done=S.players.every(p=>p.roster.length>=S.goal);
       $('next').textContent=done?'Ir a intercambios':(ph==='idle'?'Lanzar subasta':'Siguiente subasta');
       $('next').disabled=ph==='auction'||ph==='roulette';
-      $('rep').disabled=ph!=='auction';
+      $('rep').textContent=ph==='auction'?'Repetir voz ('+S.plays+'/'+S.maxPlays+')':'Repetir voz';
+      $('rep').disabled=ph!=='auction'||S.paused||S.plays>=S.maxPlays;
+      $('opn').textContent='Abrir ofertas ('+Math.round(S.openMs/1000)+' s)';
+      $('opn').disabled=!(ph==='auction'&&!S.bidsOpen&&!S.paused);
+      $('pau').textContent=S.paused?'Reanudar':'Pausar sonido';
+      $('pau').disabled=ph!=='auction';
     }
 
     $('board').innerHTML=S.players.map(p=>{
@@ -403,8 +423,8 @@ function renderEnd(m,host,ph){
 
 setInterval(()=>{
   if(S&&S.phase==='roulette'&&S.reveal&&S.reveal.tie){$('timer').textContent='';$('name').textContent='🎰 '+nameOf(S.reveal.tie[spin++%S.reveal.tie.length]);return}
-  if(!S||S.phase!=='auction'){$('timer').textContent='';return}
-  $('timer').textContent=(Math.max(0,endAt-performance.now())/1000).toFixed(1)+' s';
+  if(!S||S.phase!=='auction'||!S.bidsOpen){$('timer').textContent='';return}
+  $('timer').textContent=S.paused?(S.ms/1000).toFixed(1)+' s ⏸':(Math.max(0,endAt-performance.now())/1000).toFixed(1)+' s';
 },100);
 </script>
 </body>
