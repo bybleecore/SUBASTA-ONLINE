@@ -11,9 +11,9 @@ app.get('/health', (q, res) => res.send('ok'));
 
 // ---- Ajustes del juego (cámbialos aquí) ----
 const MAXP = 8;          // máximo de jugadores por sala
-const GOAL = 4;          // personajes que hay que conseguir
+const GOAL = 5;          // personajes que hay que conseguir (= número de rondas)
 const MONEY = 50;        // dinero inicial
-const OPEN_MS = 15000;   // segundos para ofertar desde que el anfitrión abre las ofertas
+const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre las ofertas
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
 const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
@@ -134,7 +134,8 @@ function startAuction(r) {
 function finishVote(r) {
   const tally = {};
   r.players.forEach(p => tally[p.id] = 0);
-  Object.values(r.votes).forEach(t => { if (tally[t] !== undefined) tally[t]++; });
+  // cada voto es un ranking de peor a mejor: el peor suma 1 punto, el siguiente 2, etc.
+  Object.values(r.votes).forEach(rk => rk.forEach((id, i) => { if (tally[id] !== undefined) tally[id] += i + 1; }));
   const max = Math.max(...Object.values(tally));
   r.results = { tally, winners: max > 0 ? r.players.filter(p => tally[p.id] === max).map(p => p.id) : [] };
   r.phase = 'end';
@@ -288,10 +289,11 @@ io.on('connection', s => {
     r.phase = 'vote'; r.votes = {}; r.offers = [];
     push(r);
   });
-  s.on('vote', target => {
-    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'vote') return;
-    if (target === p.id || !find(r, target)) return;
-    r.votes[p.id] = target;
+  s.on('vote', ranking => {
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'vote' || p.id in r.votes) return;
+    const others = r.players.filter(q => q.id !== p.id).map(q => q.id);
+    if (!Array.isArray(ranking) || ranking.length !== others.length || new Set(ranking).size !== others.length || !ranking.every(id => others.includes(id))) return;
+    r.votes[p.id] = ranking;
     if (r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
     push(r);
   });

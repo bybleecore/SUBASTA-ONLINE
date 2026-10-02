@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Subasta a sordas · Online</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#2A1B5E">
+<link rel="icon" href="/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Bowlby+One&family=Work+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#2A1B5E;--ink:#F7F0E3;--y:#FFD23F;--r:#E8383D;--card:#3A2878;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 17px/1.5 'Work Sans',system-ui,sans-serif;min-height:100%;padding:20px}
+main{max-width:640px;margin:0 auto}
+h1{font:400 clamp(2.2rem,10vw,4rem)/.95 'Bowlby One',Impact,sans-serif;margin:8px 0 12px;color:var(--y);transform:rotate(-1.5deg)}
+h2{font:400 1.3rem 'Bowlby One',Impact,sans-serif;color:var(--y);margin:18px 0 8px}
+p{margin:0 0 14px;max-width:60ch}
+small{opacity:.85}
+.warn{background:var(--r);padding:10px 14px;border-radius:6px;font-weight:600}
+label{display:block;font-weight:600;margin:14px 0 4px}
+input,select{width:100%;padding:12px;border-radius:6px;border:2px solid var(--y);background:var(--card);color:var(--ink);font:inherit}
+input[type=range]{padding:0;accent-color:var(--y)}
+button{font:400 1.05rem 'Bowlby One',Impact,sans-serif;border:0;border-radius:6px;padding:12px 18px;background:var(--y);color:#2A1B5E;cursor:pointer;margin:6px 6px 6px 0}
+button.alt{background:var(--card);color:var(--ink);border:2px solid var(--y)}
+button.sel{background:var(--r);color:var(--ink)}
+button.sm{font-size:.85rem;padding:7px 10px;margin:3px 3px 3px 0}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.code{font:400 1.4rem 'Bowlby One',Impact,sans-serif;color:var(--y);letter-spacing:.15em}
+.stage{margin-top:14px;padding:20px;background:var(--card);border-radius:10px;text-align:center}
+#name{font:400 clamp(1.8rem,8vw,3rem)/1.1 'Bowlby One',Impact,sans-serif;color:var(--y);min-height:1.2em;margin:10px 0}
+#timer{font:400 2rem 'Bowlby One',Impact,sans-serif}
+#bidInfo{font-weight:600;min-height:1.5em}
+.eq{display:flex;gap:4px;height:40px;align-items:flex-end;justify-content:center}
+.eq i{width:8px;background:var(--r);height:8px;border-radius:2px}
+.on .eq i{animation:b .25s infinite alternate}
+.on .eq i:nth-child(2n){animation-duration:.17s}.on .eq i:nth-child(3n){animation-duration:.33s}
+@keyframes b{to{height:40px}}
+@media (prefers-reduced-motion:reduce){.on .eq i{animation:none;height:24px}}
+.pl{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #5a47a0}
+.box{margin-top:14px;padding:14px;background:var(--card);border-radius:10px}
+.card{padding:12px;margin:10px 0;background:var(--card);border-radius:10px}
+.card.win{border:3px solid var(--y)}
+.row{display:flex;gap:8px;align-items:center}
+.row input{flex:1}
+.chip{display:inline-block;background:#5a47a0;border-radius:99px;padding:3px 10px;margin:2px 4px 2px 0;font-size:.9rem}
+.hide{display:none!important}
+#err{color:#ffb4b4;min-height:1.5em;font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>Subasta a sordas</h1>
+
+<!-- INICIO -->
+<section id="home">
+  <p>Modo online: crea una sala, pasa el código y subasta a ciegas. Máximo 8 jugadores.</p>
+  <label for="nm">Tu nombre</label>
+  <input id="nm" maxlength="14" placeholder="Ej: Marta" autocomplete="off">
+  <button id="create">Crear sala</button>
+  <label for="cd">…o únete con un código</label>
+  <input id="cd" maxlength="4" placeholder="ABCD" autocomplete="off" style="text-transform:uppercase">
+  <button id="join" class="alt">Unirme</button>
+  <div id="err"></div>
+</section>
+
+<!-- SALA -->
+<section id="room" class="hide">
+  <div class="top">
+    <span class="code" id="codeLbl"></span>
+    <span id="me"></span>
+    <span>
+      <button id="snd" class="alt sm">🔊 Probar sonido</button>
+      <button id="leave" class="alt sm">Salir</button>
+    </span>
+  </div>
+
+  <!-- LOBBY -->
+  <section id="lobby">
+    <p>Pasa el código <b id="codeBig"></b> a tus amigos. Cuando estéis todos, el anfitrión empieza.</p>
+    <div id="plLobby"></div>
+    <div id="hostLobby" class="hide">
+      <label for="modo">Modo de juego</label>
+      <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option></select>
+      <label for="auc">Tipo de subasta</label>
+      <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
+      <label for="dif">Dificultad</label>
+      <select id="dif"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
+      <button id="start">Empezar partida</button>
+    </div>
+    <p id="waitHost" class="hide">Esperando al anfitrión…</p>
+  </section>
+
+  <!-- SUBASTA -->
+  <section id="game" class="hide">
+    <div class="stage" id="stage">
+      <small id="roundLbl"></small>
+      <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="name" aria-live="polite"></div>
+      <div id="timer"></div>
+      <div id="bidInfo"></div>
+      <div id="status"></div>
+    </div>
+
+    <div id="bidBox" class="box hide">
+      <div id="qb">
+        <button id="bq1">+1</button><button id="bq5">+5</button><button id="bq10">+10</button>
+      </div>
+      <div class="row">
+        <input id="bidIn" type="number" min="1" inputmode="numeric" placeholder="Otra cantidad">
+        <button id="bidGo">Pujar</button>
+      </div>
+      <small id="bidNote"></small>
+    </div>
+
+    <div id="hostBox" class="box hide">
+      <b>Panel del anfitrión</b>
+      <label for="vol">Volumen de la música</label>
+      <input id="vol" type="range" min="0" max="100" value="70">
+      <label for="vv">Volumen de la voz</label>
+      <input id="vv" type="range" min="1" max="100" value="25">
+      <label for="auc2">Tipo de subasta (para la próxima)</label>
+      <select id="auc2"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
+      <label for="dif2">Dificultad</label>
+      <select id="dif2"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
+      <div style="margin-top:10px">
+        <button id="next">Lanzar subasta</button>
+        <button id="opn">Abrir ofertas</button>
+        <button id="pau" class="alt">Pausar sonido</button>
+        <button id="rep" class="alt">Repetir voz</button>
+      </div>
+    </div>
+
+    <h2>Jugadores</h2>
+    <div id="board"></div>
+  </section>
+
+  <!-- INTERCAMBIO / VOTACIÓN / FINAL -->
+  <section id="endgame" class="hide"><div id="eg"></div></section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LV=[{v:1,r:1,st:3},{v:.7,r:1.25,st:2},{v:.5,r:1.5,st:1}];
+if(!localStorage.tok)localStorage.tok=Math.random().toString(36).slice(2)+Date.now().toString(36);
+const tok=localStorage.tok;
+const socket=io();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+let pendSay=null,wasPaused=false,rank=[];
+let S=null,myId=null,ctx=null,master=null,burst=null,step=0,voices=[],cv=null,vt=null,giveChoice='',myVote='',endAt=0;
+
+/* ---------- AUDIO ---------- */
+const mg=()=>Math.pow((S?S.vol:70)/100,2)*1.4;
+function unlock(){
+  if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();
+  ctx.resume();
+  if('speechSynthesis' in window){const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}
+}
+function tone(f,t,d,type,g){
+  const o=ctx.createOscillator(),e=ctx.createGain();o.type=type;o.frequency.value=f;
+  e.gain.setValueAtTime(0,t);e.gain.linearRampToValueAtTime(g,t+.02);e.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(e);e.connect(master);o.start(t);o.stop(t+d+.05);
+}
+function startNoise(){
+  stopNoise();
+  unlock();
+  master=ctx.createGain();master.gain.value=mg();
+  const comp=ctx.createDynamicsCompressor();master.connect(comp);comp.connect(ctx.destination);
+  const N=[261.6,311.1,349.2,392,466.2,523.3];step=0;
+  burst=setInterval(()=>{
+    const t=ctx.currentTime;
+    tone(N[Math.floor(Math.random()*N.length)]*(step%4===0?.5:1),t,.25,"sawtooth",.6);
+    tone(N[Math.floor(Math.random()*N.length)]*2,t,.2,"square",.3);
+    if(step%2===0)tone(step%8===0?65.4:98,t,.45,"sine",.9);
+    step++;
+  },200);
+  $("stage").classList.add("on");
+}
+function stopNoise(){
+  clearInterval(burst);burst=null;
+  if(master){try{master.disconnect()}catch(e){}master=null}
+  clearTimeout(vt);pendSay=null;
+  if('speechSynthesis' in window){speechSynthesis.cancel();speechSynthesis.resume()}
+  $("stage").classList.remove("on");
+}
+function applyPause(){
+  const p=!!(S&&S.phase==='auction'&&S.paused);
+  if(p===wasPaused)return;wasPaused=p;
+  const ss='speechSynthesis' in window;
+  if(p){if(ctx)ctx.suspend();if(ss)speechSynthesis.pause()}
+  else{if(ctx)ctx.resume();if(ss)speechSynthesis.resume();if(pendSay){const a=pendSay;pendSay=null;say(a)}}
+}
+function stopMusic(){
+  clearInterval(burst);burst=null;
+  if(master){try{master.disconnect()}catch(e){}master=null}
+  $("stage").classList.remove("on");
+}
+function loadVoices(){voices=speechSynthesis.getVoices().filter(v=>/^es/i.test(v.lang))}
+if('speechSynthesis' in window){loadVoices();speechSynthesis.onvoiceschanged=loadVoices}
+function say(a){
+  if(!('speechSynthesis' in window)||!S)return;
+  speechSynthesis.cancel();
+  const lv=LV[S.dif];
+  const u=new SpeechSynthesisUtterance(a.text.replace(/[aeiouáéíóúü]/gi,m=>m.repeat(lv.st)));
+  u.lang='es-ES';if(cv)u.voice=cv;
+  u.volume=Math.pow(S.vv/100,2)*lv.v;u.rate=lv.r;u.pitch=a.pitch;
+  speechSynthesis.speak(u);
+}
+socket.on('play',a=>{
+  if(!a.rep){startNoise();cv=voices.length?voices[Math.floor(Math.random()*voices.length)]:null}
+  clearTimeout(vt);
+  vt=setTimeout(()=>{if(S&&S.paused)pendSay=a;else say(a)},a.delay);
+});
+$('snd').onclick=()=>{unlock();if(S&&S.phase==='auction')return;startNoise();setTimeout(stopNoise,700)};
+
+/* ---------- CONEXIÓN ---------- */
+function show(which){$('home').classList.toggle('hide',which!=='home');$('room').classList.toggle('hide',which!=='room')}
+function after(r,name){
+  if(r.err){$('err').textContent=r.err;localStorage.removeItem('room');show('home');return}
+  myId=r.id;localStorage.room=r.code;localStorage.nm=name;show('room');
+}
+function nameVal(){return $('nm').value.trim()}
+$('nm').value=localStorage.nm||'';
+$('create').onclick=()=>{unlock();const n=nameVal();socket.emit('create',{name:n,tok},r=>after(r,n))};
+$('join').onclick=()=>{unlock();const n=nameVal();const c=$('cd').value.trim().toUpperCase();if(!c){$('err').textContent='Escribe el código de la sala';return}socket.emit('join',{code:c,name:n,tok},r=>after(r,n))};
+$('leave').onclick=()=>{localStorage.removeItem('room');location.reload()};
+socket.on('connect',()=>{
+  if(localStorage.room){const n=localStorage.nm||'';socket.emit('join',{code:localStorage.room,name:n,tok},r=>after(r,n))}
+});
+
+/* ---------- ACCIONES ---------- */
+$('start').onclick=()=>socket.emit('start');
+$('modo').onchange=()=>socket.emit('settings',{mode:$('modo').value});
+$('dif').onchange=()=>socket.emit('settings',{dif:+$('dif').value});
+$('dif2').onchange=()=>socket.emit('settings',{dif:+$('dif2').value});
+$('auc').onchange=()=>socket.emit('settings',{auc:$('auc').value});
+$('auc2').onchange=()=>socket.emit('settings',{auc:$('auc2').value});
+$('vol').oninput=()=>socket.emit('settings',{vol:+$('vol').value});
+$('vv').oninput=()=>socket.emit('settings',{vv:+$('vv').value});
+$('next').onclick=()=>socket.emit('next');
+$('rep').onclick=()=>socket.emit('repeat');
+$('opn').onclick=()=>socket.emit('openBids');
+$('pau').onclick=()=>socket.emit('pause');
+[1,5,10].forEach(n=>$('bq'+n).onclick=()=>socket.emit('bid',S.bid+n));
+let lastSent=null,spin=0;
+$('bidGo').onclick=()=>{
+  const raw=$('bidIn').value;if(raw==='')return;
+  const v=Math.floor(+raw),m=me();
+  if(S&&S.auc==='blind'){
+    if(!(v>=0)||!m||v>m.money)return;
+    if(!confirm('¿Enviar '+v+'$ a ciegas? No se puede cambiar.'))return;
+    lastSent=v;socket.emit('bid',v);$('bidIn').value='';return;
+  }
+  if(v>0){socket.emit('bid',v);$('bidIn').value=''}
+};
+$('bidIn').onkeydown=e=>{if(e.key==='Enter')$('bidGo').click()};
+
+$('eg').onclick=e=>{
+  const b=e.target.closest('button[data-act]');if(!b)return;const d=b.dataset;
+  if(d.act==='ask'){if(!giveChoice)return;socket.emit('offer',{to:d.to,give:giveChoice,want:d.want})}
+  else if(d.act==='acc')socket.emit('respond',{id:+d.id,ok:true});
+  else if(d.act==='rej'||d.act==='cancel')socket.emit('respond',{id:+d.id,ok:false});
+  else if(d.act==='up'||d.act==='down'){const i=+d.i,j=d.act==='up'?i-1:i+1;if(j>=0&&j<rank.length){[rank[i],rank[j]]=[rank[j],rank[i]];render()}}
+  else if(d.act==='sendrank')socket.emit('vote',rank);
+  else if(d.act==='tovote')socket.emit('voteStart');
+  else if(d.act==='vend')socket.emit('voteEnd');
+  else if(d.act==='again'){myVote='';giveChoice='';socket.emit('restart')}
+};
+$('eg').onchange=e=>{if(e.target.id==='giveSel')giveChoice=e.target.value};
+
+/* ---------- RENDER ---------- */
+socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;render()});
+const me=()=>S.players.find(p=>p.id===myId);
+const nameOf=id=>{const p=S.players.find(x=>x.id===id);return p?p.name:'?'};
+function setVal(el,v){if(document.activeElement!==el)el.value=v}
+
+function render(){
+  if(!S||!myId)return;
+  const m=me(),host=S.hostId===myId,ph=S.phase;
+  $('codeLbl').textContent='Sala '+S.code;
+  $('me').textContent=m?m.name+' · '+m.money+'$':'';
+  $('lobby').classList.toggle('hide',ph!=='lobby');
+  $('game').classList.toggle('hide',!['idle','auction','roulette','sold'].includes(ph));
+  $('endgame').classList.toggle('hide',!['trade','vote','end'].includes(ph));
+  if(master)master.gain.value=mg();
+  if(ph!=='auction'&&burst)stopNoise();
+  if(ph==='auction'&&S.bidsOpen&&burst)stopMusic();
+  applyPause();
+  if(ph==='lobby')rank=[];
+
+  if(ph==='lobby'){
+    $('codeBig').textContent=S.code;
+    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span></div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
+    $('hostLobby').classList.toggle('hide',!host);
+    $('waitHost').classList.toggle('hide',host);
+    setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);
+    $('start').disabled=S.players.length<2;
+    return;
+  }
+
+  if(['idle','auction','roulette','sold'].includes(ph)){
+    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal;
+    const elig=m&&m.eligible;
+    let nm='…',st='',info='';
+    if(ph==='idle')st=host?'Pulsa «Lanzar subasta».':'Esperando al anfitrión…';
+    const blind=S.auc==='blind';
+    if(ph!=='auction')lastSent=null;
+    const bidsTxt=bs=>Object.entries(bs).sort((x,y)=>y[1]-x[1]).map(([id,a])=>nameOf(id)+': '+a+'$').join(' · ');
+    if(ph==='auction'){
+      nm='¿Quién es?';
+      if(blind){
+        const pend=S.players.filter(p=>p.eligible&&!S.sealed.includes(p.id)).map(p=>p.name);
+        st=elig?(S.sealed.includes(myId)?'Oferta enviada 🔒. Espera a los demás.':'Escucha y haz UNA oferta secreta. Solo puedes comprar uno por ronda.'):'Ya compraste en esta ronda: escucha y espera.';
+        info='🔒 A ciegas · ofertas enviadas: '+S.sealed.length+(pend.length?' · faltan: '+pend.join(', '):'');
+      }else{
+        st=elig?'Escucha y puja. Solo puedes comprar uno por ronda.':'Ya compraste en esta ronda: escucha y espera.';
+        info=S.bidder?'Mejor puja: '+S.bid+'$ · '+nameOf(S.bidder):'Nadie ha pujado todavía';
+      }
+      if(!S.bidsOpen){st='Escucha: el anfitrión abrirá las ofertas (tendréis '+Math.round(S.openMs/1000)+' s).';info='Ofertas cerradas';}
+      if(S.paused)st='⏸ En pausa. '+st;
+    }
+    if(ph==='roulette'&&S.reveal){
+      nm='🎰';
+      const tie=S.reveal.tie||[];
+      st='¡Empate a '+Math.max(...Object.values(S.reveal.bids))+'$ entre '+tie.map(nameOf).join(' y ')+'! Girando la ruleta…';
+      info='Ofertas: '+bidsTxt(S.reveal.bids);
+    }
+    if(ph==='sold'&&S.last){
+      const w=nameOf(S.last.winner),l=S.last;
+      nm=l.name;
+      st=l.how==='bid'?w+' se lo lleva por '+l.price+'$':l.how==='blind'?w+' se lo lleva por '+l.price+'$ (oferta a ciegas'+(l.tie?', ganó en la ruleta':'')+')':l.how==='free'?'Nadie pujó: '+w+' se lo lleva gratis':w+' era el último de la ronda y se lo lleva por '+l.price+'$';
+      if(l.bids)info='Ofertas: '+bidsTxt(l.bids);
+    }
+    $('name').textContent=nm;
+    $('status').textContent=st;
+    $('bidInfo').textContent=info;
+
+    const showBid=ph==='auction'&&elig&&S.bidsOpen;
+    $('bidBox').classList.toggle('hide',!showBid);
+    $('qb').classList.toggle('hide',blind);
+    if(showBid){
+      if(blind){
+        const sent=S.sealed.includes(myId);
+        $('bidIn').disabled=sent||S.paused;$('bidGo').disabled=sent||S.paused;
+        $('bidGo').textContent='Enviar oferta';
+        $('bidIn').placeholder='Tu oferta (0 a '+m.money+'$)';
+        $('bidNote').textContent=sent?'Tu oferta: '+(lastSent!==null?lastSent+'$':'enviada')+' 🔒':'Tienes '+m.money+'$. Una sola oferta: nadie la verá y no se puede cambiar.';
+      }else{
+        const top=S.bidder===myId;
+        $('bidIn').disabled=S.paused;$('bidGo').textContent='Pujar';$('bidIn').placeholder='Otra cantidad';
+        [1,5,10].forEach(n=>$('bq'+n).disabled=top||S.paused||S.bid+n>m.money);
+        $('bidGo').disabled=top||S.paused;
+        $('bidNote').textContent=top?'Vas ganando. Espera…':'Tienes '+m.money+'$. Puja mínima: '+(S.bid+1)+'$';
+      }
+    }
+
+    $('hostBox').classList.toggle('hide',!host);
+    if(host){
+      setVal($('vol'),S.vol);setVal($('vv'),S.vv);setVal($('dif2'),S.dif);setVal($('auc2'),S.auc);
+      const done=S.players.every(p=>p.roster.length>=S.goal);
+      $('next').textContent=done?'Ir a intercambios':(ph==='idle'?'Lanzar subasta':'Siguiente subasta');
+      $('next').disabled=ph==='auction'||ph==='roulette';
+      $('rep').textContent=ph==='auction'?'Repetir voz ('+S.plays+'/'+S.maxPlays+')':'Repetir voz';
+      $('rep').disabled=ph!=='auction'||S.paused||S.plays>=S.maxPlays;
+      $('opn').textContent='Abrir ofertas ('+Math.round(S.openMs/1000)+' s)';
+      $('opn').disabled=!(ph==='auction'&&!S.bidsOpen&&!S.paused);
+      $('pau').textContent=S.paused?'Reanudar':'Pausar sonido';
+      $('pau').disabled=ph!=='auction';
+    }
+
+    $('board').innerHTML=S.players.map(p=>{
+      const tag=p.eligible?(ph==='auction'&&blind&&S.sealed.includes(p.id)?'🔒 ya ofertó':ph==='auction'&&!blind&&S.bidder===p.id?'🔥 va ganando':'puja'):'✔ fuera';
+      return '<div class="pl"><div><b>'+esc(p.name)+'</b>'+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+(p.on?'':' ⚠ sin conexión')+
+        '<br><small>'+(p.roster.map(esc).join(' · ')||'—')+'</small></div>'+
+        '<div style="text-align:right">'+p.money+'$<br><small>'+p.roster.length+'/'+S.goal+' · '+tag+'</small></div></div>';
+    }).join('');
+    return;
+  }
+  renderEnd(m,host,ph);
+}
+
+function renderEnd(m,host,ph){
+  let h='';
+  if(!m.roster.includes(giveChoice))giveChoice=m.roster[0]||'';
+  if(ph==='trade'){
+    h+='<h2>Intercambios</h2><p>Elige qué personaje das y pulsa uno de otro jugador para proponerle el cambio 1×1.</p>';
+    h+='<label for="giveSel">Yo doy:</label><select id="giveSel">'+m.roster.map(n=>'<option value="'+esc(n)+'"'+(n===giveChoice?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
+    const mine=S.offers.filter(o=>o.from===myId||o.to===myId);
+    if(mine.length){
+      h+='<h2>Ofertas</h2>';
+      mine.forEach(o=>{
+        if(o.to===myId)h+='<div class="card"><b>'+esc(nameOf(o.from))+'</b> te da <b>'+esc(o.give)+'</b> por tu <b>'+esc(o.want)+'</b><br><button class="sm" data-act="acc" data-id="'+o.id+'">Aceptar</button><button class="sm alt" data-act="rej" data-id="'+o.id+'">Rechazar</button></div>';
+        else h+='<div class="card">Ofreces <b>'+esc(o.give)+'</b> a '+esc(nameOf(o.to))+' por su <b>'+esc(o.want)+'</b><br><button class="sm alt" data-act="cancel" data-id="'+o.id+'">Cancelar</button></div>';
+      });
+    }
+  }
+  if(ph==='vote'){
+    const others=S.players.filter(p=>p.id!==myId).map(p=>p.id);
+    rank=rank.filter(id=>others.includes(id));others.forEach(id=>{if(!rank.includes(id))rank.push(id)});
+    const sent=S.voted.includes(myId);
+    h+='<h2>Votación</h2><p>Ordena a los demás del <b>peor</b> (arriba) al <b>mejor</b> (abajo) según su plantilla. Tú no te incluyes.</p><small>👎 PEOR</small>';
+    rank.forEach((id,i)=>{
+      const p=S.players.find(x=>x.id===id);if(!p)return;
+      h+='<div class="card"><div class="row"><div style="flex:1"><b>'+(i+1)+'. '+esc(p.name)+'</b>'+(S.voted.includes(p.id)?' · votó ✔':'')+'<div>'+p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('')+'</div></div>'+
+        (sent?'':'<div><button class="sm alt" data-act="up" data-i="'+i+'"'+(i===0?' disabled':'')+'>▲</button><button class="sm alt" data-act="down" data-i="'+i+'"'+(i===rank.length-1?' disabled':'')+'>▼</button></div>')+'</div></div>';
+    });
+    h+='<small>👑 MEJOR</small>';
+    h+=sent?'<p><b>Ranking enviado ✔.</b> Esperando a los demás ('+S.voted.length+' de '+S.players.filter(p=>p.on).length+')…</p>':'<div><button data-act="sendrank">Enviar ranking</button></div>';
+    h+='<h2>Tu plantilla</h2>';
+  }
+  if(ph==='end'&&S.results){
+    const R=S.results;
+    const win=R.winners.map(nameOf);
+    h+='<h2>🏆 '+(win.length?(win.length>1?'Empate: ':'Ganador: ')+esc(win.join(' y ')):'Sin votos')+'</h2>';
+  }
+  const order=ph==='end'&&S.results?[...S.players].sort((a,b)=>S.results.tally[b.id]-S.results.tally[a.id]):S.players;
+  (ph==='vote'?S.players.filter(p=>p.id===myId):order).forEach(p=>{
+    const isMe=p.id===myId;
+    const win=ph==='end'&&S.results&&S.results.winners.includes(p.id);
+    h+='<div class="card'+(win?' win':'')+'"><b>'+(ph==='end'&&S.results?'#'+(1+order.filter(q=>S.results.tally[q.id]>S.results.tally[p.id]).length)+' ':'')+esc(p.name)+'</b>'+(isMe?' (tú)':'')+(p.id===S.hostId?' 👑':'')+' · '+p.money+'$';
+    if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
+    if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
+    h+='<div>';
+    p.roster.forEach(n=>{
+      if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+'</button>';
+      else h+='<span class="chip">'+esc(n)+'</span>';
+    });
+    h+='</div>';
+    if(ph==='vote'&&!isMe)h+='<button class="sm'+(myVote===p.id?' sel':'')+'" data-act="vote" data-to="'+esc(p.id)+'">'+(myVote===p.id?'Tu voto ✔':'Votar')+'</button>';
+    h+='</div>';
+  });
+  if(host){
+    if(ph==='trade')h+='<button data-act="tovote">Pasar a votación</button>';
+    if(ph==='vote')h+='<button data-act="vend">Cerrar votación</button>';
+    if(ph==='end')h+='<button data-act="again">Nueva partida</button>';
+  }else if(ph==='trade')h+='<p><small>El anfitrión decidirá cuándo pasar a votar.</small></p>';
+  $('eg').innerHTML=h;
+}
+
+setInterval(()=>{
+  if(S&&S.phase==='roulette'&&S.reveal&&S.reveal.tie){$('timer').textContent='';$('name').textContent='🎰 '+nameOf(S.reveal.tie[spin++%S.reveal.tie.length]);return}
+  if(!S||S.phase!=='auction'||!S.bidsOpen){$('timer').textContent='';return}
+  $('timer').textContent=S.paused?(S.ms/1000).toFixed(1)+' s ⏸':(Math.max(0,endAt-performance.now())/1000).toFixed(1)+' s';
+},100);
+</script>
+</body>
+</html>
