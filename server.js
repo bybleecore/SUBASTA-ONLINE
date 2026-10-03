@@ -93,7 +93,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -113,7 +113,7 @@ function sell(r, p, price, how) {
   clearTimeout(r.timer);
   r.paused = false; r.bidsOpen = false;
   p.money -= price;
-  if (r.gm === 'tema' && r.curSlot) p.cast[r.curSlot] = r.cur; // el nombre se coloca solo en el puesto de la ronda
+  if (r.gm === 'tema' && r.curSlot && !p.cast[r.curSlot]) p.cast[r.curSlot] = r.cur; // se coloca solo en el puesto de la ronda si está libre; luego el jugador puede moverlo
   p.roster.push(r.cur);
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
@@ -174,10 +174,11 @@ function startAuction(r) {
 }
 
 function autofill(r) { // los personajes sin puesto se colocan solos en los puestos vacíos
-  if (r.gm !== 'cast' || !r.theme) return;
+  if ((r.gm !== 'cast' && r.gm !== 'tema') || !r.theme) return;
+  const roles = r.gm === 'tema' ? r.theme.slots : r.theme.roles;
   r.players.forEach(p => {
     const free = p.roster.filter(n => !Object.values(p.cast).includes(n));
-    r.theme.roles.forEach(role => { if (!p.cast[role] && free.length) p.cast[role] = free.shift(); });
+    roles.forEach(role => { if (!p.cast[role] && free.length) p.cast[role] = free.shift(); });
   });
 }
 
@@ -212,7 +213,7 @@ io.on('connection', s => {
       if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
       if (r.players.length >= MAXP) return cb({ err: 'Sala llena (máx. ' + MAXP + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
-      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null };
+      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
     }
@@ -256,7 +257,15 @@ io.on('connection', s => {
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
       : null;
     r.order = null;
-    if (r.gm === 'tema') { const t = buildTema(TEMA_THEMES[Math.floor(Math.random() * TEMA_THEMES.length)]); r.theme = t.theme; r.order = t.order; }
+    if (r.gm === 'tema') {
+      const t = buildTema('AMAR TEMA'); r.theme = t.theme; r.order = t.order;
+      // cada jugador recibe una temática distinta (si hay más jugadores que temáticas, se vuelven a repartir)
+      let bag = [];
+      r.players.forEach(p => {
+        if (!bag.length) bag = [...TEMA_THEMES].sort(() => Math.random() - 0.5);
+        p.tname = bag.pop();
+      });
+    }
     r.curSlot = null;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
     if (r.gm === 'tema' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
@@ -319,9 +328,10 @@ io.on('connection', s => {
   // ---- Cast ----
   s.on('place', ({ name, role } = {}) => {
     const { r, p } = ctxOf();
-    if (!r || !p || r.gm !== 'cast' || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
+    if (!r || !p || (r.gm !== 'cast' && r.gm !== 'tema') || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
     if (!p.roster.includes(name)) return;
-    if (role !== null && !r.theme.roles.includes(role)) return;
+    const roles = r.gm === 'tema' ? r.theme.slots : r.theme.roles;
+    if (role !== null && !roles.includes(role)) return;
     for (const k of Object.keys(p.cast)) if (p.cast[k] === name) delete p.cast[k];
     if (role !== null) p.cast[role] = name; // si el puesto estaba ocupado, el anterior queda sin colocar
     push(r);
@@ -389,7 +399,7 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
     r.theme = null; r.order = null; r.curSlot = null;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);

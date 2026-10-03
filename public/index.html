@@ -312,7 +312,7 @@ function render(){
   }
 
   if(['idle','auction','roulette','sold'].includes(ph)){
-    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.theme?' · '+S.theme.name:'')+(S.slot?' · Se subasta: '+S.slot:'');
+    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.gm==='tema'?(m&&m.tname?' · Tu temática: '+m.tname:''):S.theme?' · '+S.theme.name:'')+(S.slot?' · Se subasta: '+S.slot:'');
     $('special').textContent=S.special||'';$('special').classList.toggle('hide',!S.special);
     const elig=m&&m.eligible;
     let nm='…',st='',info='';
@@ -399,16 +399,18 @@ function roleSfx(p,n){
   return k?' ('+k+')':'';
 }
 function rosterHtml(p){
-  if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(S.theme.name)+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
+  if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(p.tname||'—')+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
   return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
 }
 function renderTema(box,m){
-  let h='<b>Mi tema · '+esc(S.theme.name)+'</b><p><small>Cada ronda se subasta un puesto y el artista ganado se coloca solo. En los participantes escribe tú qué personaje es cada uno; el frikirapper que ganes es quien le pone la voz.</small></p>';
+  let h='<b>Mi tema · '+esc(m.tname||'')+'</b><p><small>Tu temática es <b>'+esc(m.tname||'')+'</b>. Cada artista que ganas se coloca solo en el puesto de la ronda si está libre, pero puedes ponerlo donde quieras. En los participantes escribe tú qué personaje es cada uno; el frikirapper de ese puesto le pone la voz. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>';
   S.theme.slots.forEach(r=>{
-    const isP=S.theme.charSlots.includes(r);
-    h+='<div class="pl"><div style="flex:1"><b>'+esc(r)+'</b><br>'+esc(m.cast[r]||'—')+
-      (isP?'<input data-slot="'+esc(r)+'" maxlength="30" value="'+esc((m.chars||{})[r]||'')+'" placeholder="Escribe el personaje (temática: '+esc(S.theme.name)+')" autocomplete="off" style="margin-top:6px">':'')+'</div></div>';
+    const isP=S.theme.charSlots.includes(r),cur=m.cast[r]||'';
+    h+='<div class="pl" style="align-items:flex-start"><div style="flex:1"><b>'+esc(r)+'</b>'+
+      (isP?'<input data-slot="'+esc(r)+'" maxlength="30" value="'+esc((m.chars||{})[r]||'')+'" placeholder="Escribe el personaje (temática: '+esc(m.tname||'')+')" autocomplete="off" style="margin-top:6px">':'')+'</div>'+
+      '<select data-role="'+esc(r)+'" style="width:50%"><option value="">— vacío —</option>'+
+      m.roster.map(n=>{const w=Object.keys(m.cast).find(k=>m.cast[k]===n&&k!==r);return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+(w?' · en '+esc(w):'')+'</option>'}).join('')+'</select></div>';
   });
   box.innerHTML=h;
 }
