@@ -63,6 +63,10 @@ const poolFor = r => {
   }
   return POOL[r.mode];
 };
+// Puestos donde cada jugador puede colocar a sus personajes (según el modo de partida)
+const rolesOf = (r, p) => r.gm === 'versus' ? p.rivals
+  : (r.gm === 'tema' && r.theme) ? r.theme.slots
+  : (r.gm === 'cast' && r.theme) ? r.theme.roles : null;
 const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
@@ -96,7 +100,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -117,6 +121,7 @@ function sell(r, p, price, how) {
   r.paused = false; r.bidsOpen = false;
   p.money -= price;
   if (r.gm === 'tema' && r.curSlot && !p.cast[r.curSlot]) p.cast[r.curSlot] = r.cur; // se coloca solo en el puesto de la ronda si está libre; luego el jugador puede moverlo
+  if (r.gm === 'versus') { const f = p.rivals.find(x => !p.cast[x]); if (f) p.cast[f] = r.cur; } // va al primer rival libre; luego el jugador puede moverlo
   p.roster.push(r.cur);
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
@@ -177,9 +182,8 @@ function startAuction(r) {
 }
 
 function autofill(r) { // los personajes sin puesto se colocan solos en los puestos vacíos
-  if ((r.gm !== 'cast' && r.gm !== 'tema') || !r.theme) return;
-  const roles = r.gm === 'tema' ? r.theme.slots : r.theme.roles;
   r.players.forEach(p => {
+    const roles = rolesOf(r, p); if (!roles) return;
     const free = p.roster.filter(n => !Object.values(p.cast).includes(n));
     roles.forEach(role => { if (!p.cast[role] && free.length) p.cast[role] = free.shift(); });
   });
@@ -216,7 +220,7 @@ io.on('connection', s => {
       if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
       if (r.players.length >= MAXP) return cb({ err: 'Sala llena (máx. ' + MAXP + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
-      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null };
+      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null, rivals: [] };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
     }
@@ -249,8 +253,9 @@ io.on('connection', s => {
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
     if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k')) r.mode = d.mode;
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
-    if (r.phase === 'lobby' && (d.gm === 'std' || d.gm === 'cast' || d.gm === 'tema')) r.gm = d.gm;
+    if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus'].includes(d.gm)) r.gm = d.gm;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
+    if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std'; // versus solo existe con Freestylers
     if (r.phase === 'lobby') r.players.forEach(p => p.money = moneyOf(r));
     push(r);
   });
@@ -258,6 +263,7 @@ io.on('connection', s => {
   s.on('start', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
+    if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
       : null;
     r.order = null;
@@ -271,8 +277,12 @@ io.on('connection', s => {
       });
     }
     r.curSlot = null;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
-    if (r.gm === 'tema' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; });
+    if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
+    if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
+      const bag = [...POOL.f].sort(() => Math.random() - 0.5);
+      r.players.forEach(p => { p.rivals = bag.splice(0, GOAL); p.rivals.forEach(n => r.used.add(key(n))); });
+    }
     r.phase = 'idle';
     push(r);
   });
@@ -332,9 +342,9 @@ io.on('connection', s => {
   // ---- Cast ----
   s.on('place', ({ name, role } = {}) => {
     const { r, p } = ctxOf();
-    if (!r || !p || (r.gm !== 'cast' && r.gm !== 'tema') || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
+    if (!r || !p || ['lobby', 'vote', 'end'].includes(r.phase)) return;
+    const roles = rolesOf(r, p); if (!roles) return;
     if (!p.roster.includes(name)) return;
-    const roles = r.gm === 'tema' ? r.theme.slots : r.theme.roles;
     if (role !== null && !roles.includes(role)) return;
     for (const k of Object.keys(p.cast)) if (p.cast[k] === name) delete p.cast[k];
     if (role !== null) p.cast[role] = name; // si el puesto estaba ocupado, el anterior queda sin colocar
@@ -416,7 +426,7 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
     r.theme = null; r.order = null; r.curSlot = null;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; });
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);

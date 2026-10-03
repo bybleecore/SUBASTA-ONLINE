@@ -91,7 +91,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option></select>
       <label for="gm">Modo de partida</label>
-      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option></select>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option></select>
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
@@ -321,7 +321,7 @@ function render(){
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
-    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';
+    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';
     $('start').disabled=S.players.length<2;
     return;
   }
@@ -409,11 +409,12 @@ function render(){
 }
 
 function roleSfx(p,n){
-  if(S.gm!=='cast'&&S.gm!=='tema')return '';
+  if(S.gm!=='cast'&&S.gm!=='tema'&&S.gm!=='versus')return '';
   const k=Object.keys(p.cast||{}).find(k=>p.cast[k]===n);
-  return k?' ('+k+')':'';
+  return k?(S.gm==='versus'?' (vs '+k+')':' ('+k+')'):'';
 }
 function rosterHtml(p){
+  if(S.gm==='versus')return (p.rivals||[]).map(r=>'<span class="chip"><b>'+esc((p.cast||{})[r]||'—')+'</b> VS '+esc(r)+'</span>').join('');
   if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(p.tname||'—')+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
   return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
@@ -430,8 +431,23 @@ function renderTema(box,m){
   box.innerHTML=h;
 }
 let charT=null;
+function renderVersus(box,m){
+  let h='<b>Mis versus</b><p><small>Estos son tus 5 rivales. Cada freestyler que ganes se coloca solo contra el primer rival libre, pero puedes ponerlo contra el que quieras. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>';
+  m.rivals.forEach(r=>{
+    const cur=m.cast[r]||'';
+    h+='<div class="pl"><b>VS '+esc(r)+'</b><select data-role="'+esc(r)+'" style="width:55%"><option value="">— vacío —</option>'+
+      m.roster.map(n=>{const w=Object.keys(m.cast).find(k=>m.cast[k]===n&&k!==r);return '<option value="'+esc(n)+'"'+(n===cur?' selected':'')+'>'+esc(n)+(w?' · vs '+esc(w):'')+'</option>'}).join('')+'</select></div>';
+  });
+  box.innerHTML=h;
+}
 function renderCast(){
   const box=$('castBox'),m=me();
+  if(m&&S.gm==='versus'){
+    const show=['idle','auction','roulette','sold','trade'].includes(S.phase);
+    box.classList.toggle('hide',!show);
+    if(show&&!box.contains(document.activeElement))renderVersus(box,m);
+    return;
+  }
   if(m&&S.gm==='tema'&&S.theme){
     const show=['idle','auction','roulette','sold','trade'].includes(S.phase);
     box.classList.toggle('hide',!show);
@@ -485,13 +501,13 @@ function renderEnd(m,host,ph){
     const others=S.players.filter(p=>p.id!==myId).map(p=>p.id);
     rank=rank.filter(id=>others.includes(id));others.forEach(id=>{if(!rank.includes(id))rank.push(id)});
     const sent=S.voted.includes(myId);
-    h+='<h2>Votación</h2><p>Ordena a los demás del <b>peor</b> (arriba) al <b>mejor</b> (abajo) según su plantilla. Tú no te incluyes.</p><small>👎 PEOR</small>';
+    h+=S.gm==='versus'?'<h2>Votación</h2><p>Ordena a los demás según quién crees que <b>ganaría más versus</b>: el que menos arriba y el que más abajo. Tú no te incluyes.</p><small>👎 GANA MENOS VERSUS</small>':'<h2>Votación</h2><p>Ordena a los demás del <b>peor</b> (arriba) al <b>mejor</b> (abajo) según su plantilla. Tú no te incluyes.</p><small>👎 PEOR</small>';
     rank.forEach((id,i)=>{
       const p=S.players.find(x=>x.id===id);if(!p)return;
       h+='<div class="card"><div class="row"><div style="flex:1"><b>'+(i+1)+'. '+esc(p.name)+'</b>'+(S.voted.includes(p.id)?' · votó ✔':'')+'<div>'+rosterHtml(p)+'</div></div>'+
         (sent?'':'<div><button class="sm alt" data-act="up" data-i="'+i+'"'+(i===0?' disabled':'')+'>▲</button><button class="sm alt" data-act="down" data-i="'+i+'"'+(i===rank.length-1?' disabled':'')+'>▼</button></div>')+'</div></div>';
     });
-    h+='<small>👑 MEJOR</small>';
+    h+=S.gm==='versus'?'<small>👑 GANA MÁS VERSUS</small>':'<small>👑 MEJOR</small>';
     h+=sent?'<p><b>Ranking enviado ✔.</b> Esperando a los demás ('+S.voted.length+' de '+S.players.filter(p=>p.on).length+')…</p>':'<div><button data-act="sendrank">Enviar ranking</button></div>';
     h+='<h2>Tu plantilla</h2>';
   }
@@ -508,7 +524,7 @@ function renderEnd(m,host,ph){
     if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
     if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
     h+='<div>';
-    if((S.gm==='cast'||S.gm==='tema')&&ph!=='trade')h+=rosterHtml(p);
+    if((S.gm==='cast'||S.gm==='tema'||S.gm==='versus')&&ph!=='trade')h+=rosterHtml(p);
     else p.roster.forEach(n=>{
       if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+roleSfx(p,n)+'</button>';
       else h+='<span class="chip">'+esc(n)+roleSfx(p,n)+'</span>';
