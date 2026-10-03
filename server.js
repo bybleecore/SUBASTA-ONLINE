@@ -40,8 +40,11 @@ const spoken = n => n.replace(/\(.*?\)/g, '').replace('$', '').replace(/\./g, ' 
 const key = n => spoken(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const dedupe = arr => { const seen = new Set(); return arr.filter(n => { const k = key(n); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
 const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k) };
-const TEMA_INSTR = dedupe(NAMES.instr);
-const TEMA_VIDEO = dedupe([...POOL.k, ...NAMES.video]); // cualquier artista + los agregados
+// Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
+const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
+const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
+const TEMA_INSTR = dedupe(INSTR_NAMES);
+const TEMA_VIDEO = dedupe([...POOL.k, ...VIDEO_EXTRA]); // cualquier artista + los agregados
 const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : MONEY;
 // Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
 const poolFor = r => {
@@ -53,7 +56,7 @@ const poolFor = r => {
   return POOL[r.mode];
 };
 const specialOf = slot => slot === 'INSTRUMENTAL' ? 'Ronda especial: solo pueden salir ' + TEMA_INSTR.join(', ') + '.'
-  : slot === 'VIDEO' ? 'Ronda especial: puede salir cualquier artista y además ' + NAMES.video.join(', ') + '.' : null;
+  : slot === 'VIDEO' ? 'Ronda especial: puede salir cualquier artista y además ' + VIDEO_EXTRA.join(', ') + '.' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
