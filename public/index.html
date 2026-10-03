@@ -48,6 +48,10 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .row input{flex:1}
 .chip{display:inline-block;background:#5a47a0;border-radius:99px;padding:3px 10px;margin:2px 4px 2px 0;font-size:.9rem}
 .special{margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--r);font-weight:600;font-size:.95rem}
+.chatTog{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:20;margin:0;box-shadow:0 2px 8px #0008}
+.chatPanel{position:fixed;right:12px;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:20;width:min(340px,calc(100vw - 24px));background:var(--card);border:2px solid var(--y);border-radius:10px;padding:10px;box-shadow:0 4px 16px #000a}
+#chatLog{height:220px;overflow-y:auto;margin-bottom:8px;font-size:.95rem;line-height:1.35;overflow-wrap:anywhere}
+.cm{padding:2px 0}.cm b{color:var(--y)}.cm.mine b{color:#9be7a8}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -145,6 +149,17 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <!-- INTERCAMBIO / VOTACIÓN / FINAL -->
   <section id="endgame" class="hide"><div id="eg"></div></section>
   <div id="castBox" class="box hide"></div>
+
+  <!-- CHAT -->
+  <button id="chatTog" class="chatTog" aria-expanded="false" aria-controls="chatPanel">💬 Chat</button>
+  <div id="chatPanel" class="chatPanel hide" role="region" aria-label="Chat de la sala">
+    <div id="chatLog" aria-live="polite"></div>
+    <div class="row">
+      <input id="chatIn" maxlength="200" placeholder="Escribe un mensaje…" autocomplete="off" enterkeyhint="send" aria-label="Mensaje">
+      <button id="chatGo" class="sm" style="margin:0">Enviar</button>
+    </div>
+  </div>
+</section>
 </main>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -509,6 +524,25 @@ function renderEnd(m,host,ph){
   }else if(ph==='trade')h+='<p><small>El anfitrión decidirá cuándo pasar a votar.</small></p>';
   $('eg').innerHTML=h;
 }
+
+/* ---------- CHAT ---------- */
+let chatMsgs=[],unread=0,chatOpen=false;
+function chatBadge(){$('chatTog').textContent='💬 Chat'+(unread?' ('+unread+')':'')}
+function chatRender(){
+  const log=$('chatLog'),bottom=log.scrollTop+log.clientHeight>=log.scrollHeight-40;
+  log.innerHTML=chatMsgs.map(m=>'<div class="cm'+(m.from===myId?' mine':'')+'"><b>'+esc(m.name)+':</b> '+esc(m.text)+'</div>').join('');
+  if(bottom||!chatOpen)log.scrollTop=log.scrollHeight;
+}
+function chatToggle(){
+  chatOpen=!chatOpen;$('chatPanel').classList.toggle('hide',!chatOpen);$('chatTog').setAttribute('aria-expanded',chatOpen);
+  if(chatOpen){unread=0;chatBadge();chatRender();$('chatLog').scrollTop=$('chatLog').scrollHeight;$('chatIn').focus()}
+}
+function chatSend(){const v=$('chatIn').value.trim();if(!v)return;socket.emit('chat',v);$('chatIn').value=''}
+$('chatTog').onclick=chatToggle;
+$('chatGo').onclick=chatSend;
+$('chatIn').onkeydown=e=>{if(e.key==='Enter')chatSend()};
+socket.on('chatHistory',h=>{chatMsgs=h||[];unread=0;chatBadge();chatRender()});
+socket.on('chat',m=>{chatMsgs.push(m);if(chatMsgs.length>50)chatMsgs.shift();if(!chatOpen&&m.from!==myId){unread++;chatBadge()}chatRender()});
 
 setInterval(()=>{
   if(S&&S.phase==='roulette'&&S.reveal&&S.reveal.tie){$('timer').textContent='';$('name').textContent='🎰 '+nameOf(S.reveal.tie[spin++%S.reveal.tie.length]);return}

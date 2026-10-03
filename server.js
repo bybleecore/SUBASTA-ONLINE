@@ -34,6 +34,9 @@ function buildTema(name) {
   const chars = Array.from({ length: TEMA_CHAR_COUNT }, (_, i) => 'PARTICIPANTE ' + (i + 1));
   return { theme: { name, slots: [...SHEET_ORDER, ...chars], charSlots: chars }, order: [...SLOT_FIXED_START, ...chars] };
 }
+const CHAT_MAX = 50;      // mensajes del chat que se guardan por sala
+const CHAT_LEN = 200;     // longitud máxima de un mensaje
+const CHAT_GAP = 600;     // ms mínimos entre mensajes del mismo jugador (anti-spam)
 const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
@@ -219,12 +222,13 @@ io.on('connection', s => {
     }
     attach(r, p);
     cb({ ok: true, id: p.id, code: r.code });
+    s.emit('chatHistory', r.chat);
     push(r);
   }
 
   s.on('create', ({ name, tok }, cb) => {
     const r = {
-      code: newCode(), mode: 'f', gm: 'std', theme: null, auc: 'open', sealed: {}, reveal: null, dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
+      code: newCode(), chat: [], mode: 'f', gm: 'std', theme: null, auc: 'open', sealed: {}, reveal: null, dif: 1, vol: 70, vv: 25, phase: 'lobby', players: [], used: new Set(),
       cur: null, bid: 0, bidder: null, last: null, offers: [], oid: 0, votes: {}, results: null,
       timer: null, endsAt: 0, hostId: null, gc: null
     };
@@ -335,6 +339,19 @@ io.on('connection', s => {
     for (const k of Object.keys(p.cast)) if (p.cast[k] === name) delete p.cast[k];
     if (role !== null) p.cast[role] = name; // si el puesto estaba ocupado, el anterior queda sin colocar
     push(r);
+  });
+
+  // ---- Chat ----
+  s.on('chat', text => {
+    const { r, p } = ctxOf(); if (!r || !p) return;
+    text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, CHAT_LEN);
+    const now = Date.now();
+    if (!text || now - (p.lastChat || 0) < CHAT_GAP) return;
+    p.lastChat = now;
+    const m = { from: p.id, name: p.name, text, t: now };
+    r.chat.push(m);
+    if (r.chat.length > CHAT_MAX) r.chat.shift();
+    io.to(r.code).emit('chat', m);
   });
 
   // ---- Amar tema: personaje de cada participante ----
