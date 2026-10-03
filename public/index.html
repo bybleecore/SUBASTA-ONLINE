@@ -399,16 +399,16 @@ function roleSfx(p,n){
   return k?' ('+k+')':'';
 }
 function rosterHtml(p){
-  if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(S.theme.name)+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+(c?' → '+esc(c):'')+'</span>'}).join('');
+  if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(S.theme.name)+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
   return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
 }
 function renderTema(box,m){
-  let h='<b>Mi tema · '+esc(S.theme.name)+'</b><p><small>Cada ronda se subasta un puesto y el artista ganado se coloca solo. En los participantes escribe qué personaje de la temática hace cada uno.</small></p>';
+  let h='<b>Mi tema · '+esc(S.theme.name)+'</b><p><small>Cada ronda se subasta un puesto y el artista ganado se coloca solo. En los participantes escribe tú qué personaje es cada uno; el frikirapper que ganes es quien le pone la voz.</small></p>';
   S.theme.slots.forEach(r=>{
     const isP=S.theme.charSlots.includes(r);
     h+='<div class="pl"><div style="flex:1"><b>'+esc(r)+'</b><br>'+esc(m.cast[r]||'—')+
-      (isP?'<input data-slot="'+esc(r)+'" maxlength="30" value="'+esc((m.chars||{})[r]||'')+'" placeholder="Personaje de '+esc(S.theme.name)+'" autocomplete="off" style="margin-top:6px">':'')+'</div></div>';
+      (isP?'<input data-slot="'+esc(r)+'" maxlength="30" value="'+esc((m.chars||{})[r]||'')+'" placeholder="Escribe el personaje (temática: '+esc(S.theme.name)+')" autocomplete="off" style="margin-top:6px">':'')+'</div></div>';
   });
   box.innerHTML=h;
 }

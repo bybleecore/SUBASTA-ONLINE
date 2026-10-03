@@ -24,11 +24,16 @@ const THEMES = [
 ];
 // Temáticas del modo «amar tema» (se elige una al azar al empezar)
 const TEMA_THEMES = ['BLUE LOCK', 'JUJUTSU KAISEN', 'KIMETSU NO YAIBA', 'ANIME ROMCOM', 'CUALQUIER VIDEOJUEGO', 'MACRORAP LIBRE'];
-// Orden en que se subasta cada puesto (la primera ronda es la especial de INSTRUMENTAL)
-const TEMA_ORDER = ['INSTRUMENTAL', 'MINIATURA', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR', 'PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3'];
-// Orden en que se muestra la ficha del tema
-const TEMA_SHEET = ['MINIATURA', 'INSTRUMENTAL', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR', 'PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3'];
-const CHAR_SLOTS = ['PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3']; // aquí se escribe el personaje
+// En «amar tema» los 3 puestos de PARTICIPANTE son libres: cada jugador escribe a mano qué personaje hace cada uno
+// (respetar la temática queda en su mano) y lo que se subasta es el frikirapper de cada puesto.
+const TEMA_CHAR_COUNT = 3;
+const SLOT_FIXED_START = ['INSTRUMENTAL', 'MINIATURA', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR']; // orden de subasta (la 1.ª ronda es la especial de INSTRUMENTAL)
+const SHEET_ORDER = ['MINIATURA', 'INSTRUMENTAL', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR']; // orden en que se muestra la ficha
+const TEMA_TOTAL = SLOT_FIXED_START.length + TEMA_CHAR_COUNT;
+function buildTema(name) {
+  const chars = Array.from({ length: TEMA_CHAR_COUNT }, (_, i) => 'PARTICIPANTE ' + (i + 1));
+  return { theme: { name, slots: [...SHEET_ORDER, ...chars], charSlots: chars }, order: [...SLOT_FIXED_START, ...chars] };
+}
 const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
@@ -55,12 +60,11 @@ const poolFor = r => {
   }
   return POOL[r.mode];
 };
-const specialOf = slot => slot === 'INSTRUMENTAL' ? 'Ronda especial: solo pueden salir ' + TEMA_INSTR.join(', ') + '.'
-  : slot === 'VIDEO' ? 'Ronda especial: puede salir cualquier artista y además ' + VIDEO_EXTRA.join(', ') + '.' : null;
+const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
-const goalOf = r => r.gm === 'tema' ? TEMA_ORDER.length : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
+const goalOf = r => r.gm === 'tema' ? TEMA_TOTAL : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
 const allDone = r => minCount(r) >= goalOf(r);
 const eligible = r => { const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m); };
 
@@ -71,13 +75,17 @@ function newCode() {
   return c;
 }
 
+// Puesto que se está subastando (o el siguiente, si aún no se lanzó)
+function temaSlot(r) {
+  if (r.gm !== 'tema' || !r.order || r.phase === 'lobby') return null;
+  return ['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : (r.order[minCount(r)] || null);
+}
 function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
     gm: r.gm, theme: r.theme, goal: goalOf(r),
-    slot: r.gm === 'tema' ? (['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : TEMA_ORDER[minCount(r)] || null) : null,
-    special: r.gm === 'tema' ? specialOf(['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : TEMA_ORDER[minCount(r)]) : null, round: allDone(r) ? goalOf(r) : minCount(r) + 1,
+    slot: temaSlot(r), special: specialOf(temaSlot(r)), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
     paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
@@ -143,7 +151,7 @@ function close(r) {
 
 function startAuction(r) {
   const el = eligible(r);
-  r.curSlot = r.gm === 'tema' ? TEMA_ORDER[minCount(r)] : null;
+  r.curSlot = r.gm === 'tema' && r.order ? r.order[minCount(r)] : null;
   r.cur = pickName(r);
   r.bid = 0; r.bidder = null; r.last = null;
   r.sealed = {}; r.reveal = null;
@@ -246,7 +254,9 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
-      : r.gm === 'tema' ? { name: TEMA_THEMES[Math.floor(Math.random() * TEMA_THEMES.length)], slots: TEMA_SHEET, charSlots: CHAR_SLOTS } : null;
+      : null;
+    r.order = null;
+    if (r.gm === 'tema') { const t = buildTema(TEMA_THEMES[Math.floor(Math.random() * TEMA_THEMES.length)]); r.theme = t.theme; r.order = t.order; }
     r.curSlot = null;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
     if (r.gm === 'tema' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
@@ -321,7 +331,7 @@ io.on('connection', s => {
   s.on('char', ({ slot, text } = {}) => {
     const { r, p } = ctxOf();
     if (!r || !p || r.gm !== 'tema' || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
-    if (!CHAR_SLOTS.includes(slot)) return;
+    if (!r.theme.charSlots.includes(slot)) return;
     p.chars[slot] = String(text || '').slice(0, 30);
     push(r);
   });
@@ -378,7 +388,7 @@ io.on('connection', s => {
   s.on('restart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
-    r.theme = null; r.curSlot = null;
+    r.theme = null; r.order = null; r.curSlot = null;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
