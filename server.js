@@ -13,6 +13,7 @@ app.get('/health', (q, res) => res.send('ok'));
 const MAXP = 8;          // máximo de jugadores por sala
 const GOAL = 5;          // personajes que hay que conseguir (= número de rondas)
 const MONEY = 50;        // dinero inicial
+const MONEY_TEMA = 70;   // dinero inicial en el modo «amar tema»
 const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre las ofertas
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
@@ -21,6 +22,13 @@ const MAX_PLAYS = 2;     // veces que se puede oír la voz en cada subasta
 const THEMES = [
   { name: 'NEW GEN BLUE LOCK', roles: ['LOKI', 'DON LORENZO', 'SAE ITOSHI', 'MICHAEL KAISER', 'HUGO VIVIEN', 'TEDDY KNIGHT', 'BUNNY IGLESIAS'] }
 ];
+// Temáticas del modo «amar tema» (se elige una al azar al empezar)
+const TEMA_THEMES = ['BLUE LOCK', 'JUJUTSU KAISEN', 'KIMETSU NO YAIBA', 'ANIME ROMCOM', 'CUALQUIER VIDEOJUEGO', 'MACRORAP LIBRE'];
+// Orden en que se subasta cada puesto (la primera ronda es la especial de INSTRUMENTAL)
+const TEMA_ORDER = ['INSTRUMENTAL', 'MINIATURA', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR', 'PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3'];
+// Orden en que se muestra la ficha del tema
+const TEMA_SHEET = ['MINIATURA', 'INSTRUMENTAL', 'MIX Y MASTER', 'VIDEO', 'ESTRIBILLO CANTADO POR', 'PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3'];
+const CHAR_SLOTS = ['PARTICIPANTE 1', 'PARTICIPANTE 2', 'PARTICIPANTE 3']; // aquí se escribe el personaje
 const ROULETTE_MS = 4500; // duración de la ruleta en caso de empate
 
 const rooms = {};
@@ -32,10 +40,24 @@ const spoken = n => n.replace(/\(.*?\)/g, '').replace('$', '').replace(/\./g, ' 
 const key = n => spoken(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const dedupe = arr => { const seen = new Set(); return arr.filter(n => { const k = key(n); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
 const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k) };
-const freeLeft = r => POOL[r.mode].filter(n => !r.used.has(key(n)));
+const TEMA_INSTR = dedupe(NAMES.instr);
+const TEMA_VIDEO = dedupe([...POOL.k, ...NAMES.video]); // cualquier artista + los agregados
+const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : MONEY;
+// Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
+const poolFor = r => {
+  if (r.gm === 'tema') {
+    if (r.curSlot === 'INSTRUMENTAL') return TEMA_INSTR;
+    if (r.curSlot === 'VIDEO') return TEMA_VIDEO;
+    return POOL.k;
+  }
+  return POOL[r.mode];
+};
+const specialOf = slot => slot === 'INSTRUMENTAL' ? 'Ronda especial: solo pueden salir ' + TEMA_INSTR.join(', ') + '.'
+  : slot === 'VIDEO' ? 'Ronda especial: puede salir cualquier artista y además ' + NAMES.video.join(', ') + '.' : null;
+const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
-const goalOf = r => (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
+const goalOf = r => r.gm === 'tema' ? TEMA_ORDER.length : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
 const allDone = r => minCount(r) >= goalOf(r);
 const eligible = r => { const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m); };
 
@@ -50,7 +72,9 @@ function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
-    gm: r.gm, theme: r.theme, goal: goalOf(r), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
+    gm: r.gm, theme: r.theme, goal: goalOf(r),
+    slot: r.gm === 'tema' ? (['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : TEMA_ORDER[minCount(r)] || null) : null,
+    special: r.gm === 'tema' ? specialOf(['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : TEMA_ORDER[minCount(r)]) : null, round: allDone(r) ? goalOf(r) : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
     paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
@@ -58,7 +82,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -68,7 +92,7 @@ function push(r) { io.to(r.code).emit('state', view(r)); }
 
 function pickName(r) {
   let pool = freeLeft(r);
-  if (!pool.length) { r.used.clear(); pool = POOL[r.mode]; } // solo si se agotaron todos
+  if (!pool.length) { if (r.gm !== 'tema') r.used.clear(); pool = poolFor(r); } // solo si se agotaron todos
   const n = pool[Math.floor(Math.random() * pool.length)];
   r.used.add(key(n));
   return n;
@@ -78,6 +102,7 @@ function sell(r, p, price, how) {
   clearTimeout(r.timer);
   r.paused = false; r.bidsOpen = false;
   p.money -= price;
+  if (r.gm === 'tema' && r.curSlot) p.cast[r.curSlot] = r.cur; // el nombre se coloca solo en el puesto de la ronda
   p.roster.push(r.cur);
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
@@ -115,6 +140,7 @@ function close(r) {
 
 function startAuction(r) {
   const el = eligible(r);
+  r.curSlot = r.gm === 'tema' ? TEMA_ORDER[minCount(r)] : null;
   r.cur = pickName(r);
   r.bid = 0; r.bidder = null; r.last = null;
   r.sealed = {}; r.reveal = null;
@@ -175,7 +201,7 @@ io.on('connection', s => {
       if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
       if (r.players.length >= MAXP) return cb({ err: 'Sala llena (máx. ' + MAXP + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
-      p = { id: 'p' + (++pidSeq), tok, name: nm, money: MONEY, roster: [], cast: {}, on: true, sid: null };
+      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
     }
@@ -207,16 +233,20 @@ io.on('connection', s => {
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
     if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k')) r.mode = d.mode;
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
-    if (r.phase === 'lobby' && (d.gm === 'std' || d.gm === 'cast')) r.gm = d.gm;
-    if (r.gm === 'cast' && r.mode !== 'k') r.gm = 'std'; // el cast solo existe con Frikirappers
+    if (r.phase === 'lobby' && (d.gm === 'std' || d.gm === 'cast' || d.gm === 'tema')) r.gm = d.gm;
+    if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
+    if (r.phase === 'lobby') r.players.forEach(p => p.money = moneyOf(r));
     push(r);
   });
 
   s.on('start', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
-    if (r.gm === 'cast' && r.mode !== 'k') r.gm = 'std';
-    r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)] : null;
-    if (freeLeft(r).length < r.players.length * goalOf(r)) r.used.clear();
+    if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
+    r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
+      : r.gm === 'tema' ? { name: TEMA_THEMES[Math.floor(Math.random() * TEMA_THEMES.length)], slots: TEMA_SHEET, charSlots: CHAR_SLOTS } : null;
+    r.curSlot = null;
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
+    if (r.gm === 'tema' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     r.phase = 'idle';
     push(r);
   });
@@ -284,6 +314,15 @@ io.on('connection', s => {
     push(r);
   });
 
+  // ---- Amar tema: personaje de cada participante ----
+  s.on('char', ({ slot, text } = {}) => {
+    const { r, p } = ctxOf();
+    if (!r || !p || r.gm !== 'tema' || !r.theme || ['lobby', 'vote', 'end'].includes(r.phase)) return;
+    if (!CHAR_SLOTS.includes(slot)) return;
+    p.chars[slot] = String(text || '').slice(0, 30);
+    push(r);
+  });
+
   // ---- Intercambios ----
   s.on('offer', ({ to, give, want } = {}) => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'trade') return;
@@ -336,8 +375,8 @@ io.on('connection', s => {
   s.on('restart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
-    r.players.forEach(p => { p.money = MONEY; p.roster = []; p.cast = {}; });
-    r.theme = null;
+    r.theme = null; r.curSlot = null;
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);

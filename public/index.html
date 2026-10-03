@@ -47,6 +47,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .row{display:flex;gap:8px;align-items:center}
 .row input{flex:1}
 .chip{display:inline-block;background:#5a47a0;border-radius:99px;padding:3px 10px;margin:2px 4px 2px 0;font-size:.9rem}
+.special{margin:8px 0;padding:8px 12px;border-radius:6px;background:var(--r);font-weight:600;font-size:.95rem}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -86,7 +87,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option></select>
       <label for="gm">Modo de partida</label>
-      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option></select>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option></select>
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
@@ -101,6 +102,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
     <div class="stage" id="stage">
       <small id="roundLbl"></small>
       <div class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div id="special" class="special hide"></div>
       <div id="name" aria-live="polite"></div>
       <div id="timer"></div>
       <div id="bidInfo"></div>
@@ -304,13 +306,14 @@ function render(){
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
-    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';
+    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';
     $('start').disabled=S.players.length<2;
     return;
   }
 
   if(['idle','auction','roulette','sold'].includes(ph)){
-    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.theme?' · '+S.theme.name:'');
+    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.theme?' · '+S.theme.name:'')+(S.slot?' · Se subasta: '+S.slot:'');
+    $('special').textContent=S.special||'';$('special').classList.toggle('hide',!S.special);
     const elig=m&&m.eligible;
     let nm='…',st='',info='';
     if(ph==='idle')st=host?'Pulsa «Lanzar subasta».':'Esperando al anfitrión…';
@@ -391,16 +394,33 @@ function render(){
 }
 
 function roleSfx(p,n){
-  if(S.gm!=='cast')return '';
+  if(S.gm!=='cast'&&S.gm!=='tema')return '';
   const k=Object.keys(p.cast||{}).find(k=>p.cast[k]===n);
   return k?' ('+k+')':'';
 }
 function rosterHtml(p){
+  if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(S.theme.name)+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+(c?' → '+esc(c):'')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
   return p.roster.map(n=>'<span class="chip">'+esc(n)+'</span>').join('');
 }
+function renderTema(box,m){
+  let h='<b>Mi tema · '+esc(S.theme.name)+'</b><p><small>Cada ronda se subasta un puesto y el artista ganado se coloca solo. En los participantes escribe qué personaje de la temática hace cada uno.</small></p>';
+  S.theme.slots.forEach(r=>{
+    const isP=S.theme.charSlots.includes(r);
+    h+='<div class="pl"><div style="flex:1"><b>'+esc(r)+'</b><br>'+esc(m.cast[r]||'—')+
+      (isP?'<input data-slot="'+esc(r)+'" maxlength="30" value="'+esc((m.chars||{})[r]||'')+'" placeholder="Personaje de '+esc(S.theme.name)+'" autocomplete="off" style="margin-top:6px">':'')+'</div></div>';
+  });
+  box.innerHTML=h;
+}
+let charT=null;
 function renderCast(){
   const box=$('castBox'),m=me();
+  if(m&&S.gm==='tema'&&S.theme){
+    const show=['idle','auction','roulette','sold','trade'].includes(S.phase);
+    box.classList.toggle('hide',!show);
+    if(show&&!box.contains(document.activeElement))renderTema(box,m);
+    return;
+  }
   const show=!!(m&&S.gm==='cast'&&S.theme&&['idle','auction','roulette','sold','trade'].includes(S.phase));
   box.classList.toggle('hide',!show);
   if(!show||box.contains(document.activeElement))return;
@@ -412,13 +432,22 @@ function renderCast(){
   });
   box.innerHTML=h;
 }
+$('castBox').oninput=e=>{
+  const i=e.target;if(!i.dataset||!i.dataset.slot)return;
+  clearTimeout(charT);const slot=i.dataset.slot,text=i.value;
+  charT=setTimeout(()=>socket.emit('char',{slot,text}),400);
+};
 $('castBox').onchange=e=>{
+  if(e.target.dataset&&e.target.dataset.slot){clearTimeout(charT);socket.emit('char',{slot:e.target.dataset.slot,text:e.target.value});return}
+  castChange(e);
+};
+function castChange(e){
   const sel=e.target,m=me();if(!sel.dataset||!sel.dataset.role||!m)return;
   const role=sel.dataset.role,v=sel.value;
   if(v)socket.emit('place',{name:v,role});
   else if(m.cast[role])socket.emit('place',{name:m.cast[role],role:null});
   sel.blur();
-};
+}
 
 function renderEnd(m,host,ph){
   let h='';
@@ -462,7 +491,7 @@ function renderEnd(m,host,ph){
     if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
     if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
     h+='<div>';
-    if(S.gm==='cast'&&ph!=='trade')h+=rosterHtml(p);
+    if((S.gm==='cast'||S.gm==='tema')&&ph!=='trade')h+=rosterHtml(p);
     else p.roster.forEach(n=>{
       if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+roleSfx(p,n)+'</button>';
       else h+='<span class="chip">'+esc(n)+roleSfx(p,n)+'</span>';
