@@ -14,6 +14,8 @@ const MAXP = 10;         // máximo de jugadores por sala
 const GOAL = 5;          // personajes que hay que conseguir (= número de rondas)
 const MONEY = 50;        // dinero inicial
 const MONEY_TEMA = 70;   // dinero inicial en el modo «amar tema»
+const MONEY_XI = 100;    // dinero inicial en el modo «armar 11» (Blue Lock)
+const XI_SIZE = 11;      // jugadores del once
 const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre las ofertas
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
@@ -34,6 +36,11 @@ function buildTema(name) {
   const chars = Array.from({ length: TEMA_CHAR_COUNT }, (_, i) => 'PARTICIPANTE ' + (i + 1));
   return { theme: { name, slots: [...SHEET_ORDER, ...chars], charSlots: chars }, order: [...SLOT_FIXED_START, ...chars] };
 }
+// Modo «armar 11» (Blue Lock): puestos de cada formación (cada jugador elige la suya)
+const FORMS = {
+  '433': ['POR', 'D1', 'D2', 'D3', 'D4', 'M1', 'M2', 'M3', 'F1', 'F2', 'F3'],
+  '442': ['POR', 'D1', 'D2', 'D3', 'D4', 'M1', 'M2', 'M3', 'M4', 'F1', 'F2']
+};
 const CHAT_MAX = 50;      // mensajes del chat que se guardan por sala
 const CHAT_LEN = 200;     // longitud máxima de un mensaje
 const CHAT_GAP = 600;     // ms mínimos entre mensajes del mismo jugador (anti-spam)
@@ -120,7 +127,7 @@ const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokky
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
 const TEMA_INSTR = dedupe(INSTR_NAMES);
 const TEMA_VIDEO = dedupe([...POOL.k, ...VIDEO_EXTRA]); // cualquier artista + los agregados
-const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : MONEY;
+const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : r.gm === 'xi' ? MONEY_XI : MONEY;
 // Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
 const poolFor = r => {
   if (r.gm === 'tema') {
@@ -131,14 +138,15 @@ const poolFor = r => {
   return POOL[r.mode];
 };
 // Puestos donde cada jugador puede colocar a sus personajes (según el modo de partida)
-const rolesOf = (r, p) => r.gm === 'versus' ? p.rivals
+const rolesOf = (r, p) => r.gm === 'xi' ? FORMS[p.form || '433']
+  : r.gm === 'versus' ? p.rivals
   : (r.gm === 'tema' && r.theme) ? r.theme.slots
   : (r.gm === 'cast' && r.theme) ? r.theme.roles : null;
 const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
-const goalOf = r => r.gm === 'tema' ? TEMA_TOTAL : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
+const goalOf = r => r.gm === 'xi' ? XI_SIZE : r.gm === 'tema' ? TEMA_TOTAL : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
 const allDone = r => minCount(r) >= goalOf(r);
 const eligible = r => { const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m); };
 
@@ -158,7 +166,7 @@ function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
-    gm: r.gm, theme: r.theme, goal: goalOf(r),
+    gm: r.gm, theme: r.theme, goal: goalOf(r), forms: r.gm === 'xi' ? FORMS : null,
     slot: temaSlot(r), special: specialOf(temaSlot(r)), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
@@ -167,7 +175,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -287,7 +295,7 @@ io.on('connection', s => {
       if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
       if (r.players.length >= MAXP) return cb({ err: 'Sala llena (máx. ' + MAXP + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
-      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null, rivals: [] };
+      p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null, rivals: [], form: '433' };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
     }
@@ -323,6 +331,8 @@ io.on('connection', s => {
     if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus'].includes(d.gm)) r.gm = d.gm;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
     if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std'; // versus solo existe con Freestylers
+    if (r.mode === 'b') r.gm = 'xi'; // Blue Lock siempre es «armar 11»
+    else if (r.gm === 'xi') r.gm = 'std';
     if (r.phase === 'lobby') r.players.forEach(p => p.money = moneyOf(r));
     push(r);
   });
@@ -331,6 +341,7 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
     if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std';
+    if (r.mode === 'b') r.gm = 'xi'; else if (r.gm === 'xi') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
       : null;
     r.order = null;
@@ -344,7 +355,7 @@ io.on('connection', s => {
       });
     }
     r.curSlot = null;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; });
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = '433'; });
     if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
       let bag = [...POOL.f].sort(() => Math.random() - 0.5);
@@ -424,6 +435,15 @@ io.on('connection', s => {
     push(r);
   });
 
+  // ---- Armar 11: elegir formación ----
+  s.on('form', f => {
+    const { r, p } = ctxOf();
+    if (!r || !p || r.gm !== 'xi' || ['lobby', 'vote', 'end'].includes(r.phase) || !FORMS[f]) return;
+    p.form = f;
+    for (const k of Object.keys(p.cast)) if (!FORMS[f].includes(k)) delete p.cast[k]; // los puestos que ya no existen quedan sin colocar
+    push(r);
+  });
+
   // ---- Chat ----
   s.on('chat', text => {
     const { r, p } = ctxOf(); if (!r || !p) return;
@@ -499,7 +519,7 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
     r.theme = null; r.order = null; r.curSlot = null;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; });
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = '433'; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
     push(r);

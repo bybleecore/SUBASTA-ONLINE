@@ -52,6 +52,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .chatPanel{position:fixed;right:12px;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:20;width:min(340px,calc(100vw - 24px));background:var(--card);border:2px solid var(--y);border-radius:10px;padding:10px;box-shadow:0 4px 16px #000a}
 #chatLog{height:220px;overflow-y:auto;margin-bottom:8px;font-size:.95rem;line-height:1.35;overflow-wrap:anywhere}
 .cm{padding:2px 0}.cm b{color:var(--y)}.cm.mine b{color:#9be7a8}
+.pitch{margin:10px 0;padding:14px 6px;border-radius:10px;background:repeating-linear-gradient(#2e8b4a 0 44px,#2a8044 44px 88px);border:3px solid #e8f5e9;position:relative}
+.pitch:before{content:"";position:absolute;left:8%;right:8%;top:50%;border-top:2px solid #e8f5e955}
+.pline{display:flex;justify-content:space-around;align-items:flex-start;margin:6px 0 14px;position:relative}
+button.slot{display:flex;flex-direction:column;align-items:center;width:76px;margin:0;padding:2px;background:none;color:#fff;font:600 .72rem/1.15 'Work Sans',system-ui,sans-serif;border:0;border-radius:8px}
+button.slot i{font:400 .85rem 'Bowlby One',Impact,sans-serif;font-style:normal;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px dashed #ffffffaa;background:#0003;color:#fff}
+button.slot.full i{background:var(--y);color:#2A1B5E;border:2px solid #fff}
+button.slot.sel i{background:var(--r);color:#fff;border:3px solid #fff;transform:scale(1.12)}
+button.slot span{margin-top:3px;max-width:76px;overflow-wrap:anywhere;text-shadow:0 1px 2px #000}
+.formbar button{margin:0 6px 6px 0}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -91,7 +100,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option><option value="b">Blue Lock</option></select>
       <label for="gm">Modo de partida</label>
-      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option></select>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option></select>
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
@@ -321,7 +330,7 @@ function render(){
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
-    $('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';
+    $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
     $('start').disabled=S.players.length<2;
     return;
   }
@@ -408,12 +417,18 @@ function render(){
   renderEnd(m,host,ph);
 }
 
+const XI_LBL={'433':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MC',M2:'MC',M3:'MC',F1:'EI',F2:'DC',F3:'ED'},
+  '442':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MI',M2:'MC',M3:'MC',M4:'MD',F1:'DC',F2:'DC'}};
+const FORM_TXT={'433':'4-3-3','442':'4-4-2'};
+const xiLbl=(p,k)=>((XI_LBL[p.form||'433']||{})[k])||k;
 function roleSfx(p,n){
-  if(S.gm!=='cast'&&S.gm!=='tema'&&S.gm!=='versus')return '';
+  if(S.gm!=='cast'&&S.gm!=='tema'&&S.gm!=='versus'&&S.gm!=='xi')return '';
   const k=Object.keys(p.cast||{}).find(k=>p.cast[k]===n);
+  if(S.gm==='xi')return k?' ('+xiLbl(p,k)+')':'';
   return k?(S.gm==='versus'?' (vs '+k+')':' ('+k+')'):'';
 }
 function rosterHtml(p){
+  if(S.gm==='xi'&&S.forms)return '<span class="chip"><b>'+FORM_TXT[p.form||'433']+'</b></span>'+(S.forms[p.form||'433']||[]).map(k=>'<span class="chip"><b>'+esc(xiLbl(p,k))+':</b> '+esc((p.cast||{})[k]||'—')+'</span>').join('');
   if(S.gm==='versus')return (p.rivals||[]).map(r=>'<span class="chip"><b>'+esc((p.cast||{})[r]||'—')+'</b> VS '+esc(r)+'</span>').join('');
   if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(p.tname||'—')+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
@@ -440,8 +455,67 @@ function renderVersus(box,m){
   });
   box.innerHTML=h;
 }
+let xsel=null; // selección en la plantilla: {t:'slot'|'name',v:...}
+function renderXi(box,m){
+  const form=m.form||'433',keys=(S.forms&&S.forms[form])||[];
+  if(xsel&&((xsel.t==='slot'&&!keys.includes(xsel.v))||(xsel.t==='name'&&!m.roster.includes(xsel.v))))xsel=null;
+  const placed=Object.keys(m.cast).length;
+  const slot=k=>{
+    const n=m.cast[k]||'',sel=xsel&&xsel.t==='slot'&&xsel.v===k;
+    return '<button class="slot'+(n?' full':'')+(sel?' sel':'')+'" data-xs="'+k+'" aria-label="'+esc(xiLbl(m,k)+': '+(n||'vacío'))+'"><i>'+esc(xiLbl(m,k))+'</i><span>'+(n?esc(n):'&nbsp;')+'</span></button>';
+  };
+  const line=pre=>'<div class="pline">'+keys.filter(k=>k.startsWith(pre)).map(slot).join('')+'</div>';
+  let h='<b>Mi once · '+m.roster.length+'/'+S.goal+' fichados</b>';
+  h+='<div class="formbar" style="margin-top:8px">'+['433','442'].map(f=>'<button class="sm'+(f===form?'':' alt')+'" data-xf="'+f+'">'+FORM_TXT[f]+'</button>').join('')+'</div>';
+  h+='<p><small>Toca un puesto y luego un personaje (o al revés) para colocarlo. Toca dos puestos para intercambiarlos. Los que dejes sin poner se colocan solos al empezar la votación.</small></p>';
+  h+='<div class="pitch">'+line('F')+line('M')+line('D')+line('P')+'</div>';
+  if(xsel&&xsel.t==='slot'&&m.cast[xsel.v])h+='<button class="sm alt" data-xclr="1">Quitar a '+esc(m.cast[xsel.v])+' del puesto</button>';
+  h+='<b>Mis personajes</b><div style="margin-top:6px">';
+  h+=m.roster.length?m.roster.map(n=>{
+    const k=Object.keys(m.cast).find(k=>m.cast[k]===n);
+    const sel=xsel&&xsel.t==='name'&&xsel.v===n;
+    return '<button class="sm '+(sel?'sel':'alt')+'" data-xn="'+esc(n)+'">'+esc(n)+(k?' · '+esc(xiLbl(m,k)):'')+'</button>';
+  }).join(''):'<small>Todavía no has fichado a nadie.</small>';
+  h+='</div>';
+  box.innerHTML=h;
+}
+function xiClick(e){
+  const m=me();if(!m||S.gm!=='xi')return;
+  const t=e.target;
+  const fb=t.closest('[data-xf]');
+  if(fb){socket.emit('form',fb.dataset.xf);return}
+  if(t.closest('[data-xclr]')){
+    if(xsel&&xsel.t==='slot'&&m.cast[xsel.v])socket.emit('place',{name:m.cast[xsel.v],role:null});
+    xsel=null;renderCast();return;
+  }
+  const sb=t.closest('[data-xs]'),nb=t.closest('[data-xn]');
+  if(sb){
+    const k=sb.dataset.xs;
+    if(!xsel||(xsel.t==='slot'&&xsel.v===k)){xsel=xsel?null:{t:'slot',v:k}}
+    else if(xsel.t==='name'){socket.emit('place',{name:xsel.v,role:k});xsel=null}
+    else{ // dos puestos: intercambiar
+      const a=xsel.v,b=k,na=m.cast[a],nb2=m.cast[b];
+      if(na)socket.emit('place',{name:na,role:b});
+      if(nb2)socket.emit('place',{name:nb2,role:a});
+      xsel=null;
+    }
+    renderCast();return;
+  }
+  if(nb){
+    const n=nb.dataset.xn;
+    if(xsel&&xsel.t==='slot'){socket.emit('place',{name:n,role:xsel.v});xsel=null}
+    else xsel=(xsel&&xsel.t==='name'&&xsel.v===n)?null:{t:'name',v:n};
+    renderCast();return;
+  }
+}
 function renderCast(){
   const box=$('castBox'),m=me();
+  if(m&&S.gm==='xi'){
+    const show=['idle','auction','roulette','sold'].includes(S.phase);
+    box.classList.toggle('hide',!show);
+    if(show)renderXi(box,m);
+    return;
+  }
   if(m&&S.gm==='versus'){
     const show=['idle','auction','roulette','sold','trade'].includes(S.phase);
     box.classList.toggle('hide',!show);
@@ -465,6 +539,7 @@ function renderCast(){
   });
   box.innerHTML=h;
 }
+$('castBox').onclick=xiClick;
 $('castBox').oninput=e=>{
   const i=e.target;if(!i.dataset||!i.dataset.slot)return;
   clearTimeout(charT);const slot=i.dataset.slot,text=i.value;
@@ -524,7 +599,7 @@ function renderEnd(m,host,ph){
     if(ph==='end'&&S.results)h+=' · <b>'+S.results.tally[p.id]+' pts</b>';
     if(ph==='vote'&&S.voted.includes(p.id))h+=' · votó ✔';
     h+='<div>';
-    if((S.gm==='cast'||S.gm==='tema'||S.gm==='versus')&&ph!=='trade')h+=rosterHtml(p);
+    if((S.gm==='cast'||S.gm==='tema'||S.gm==='versus'||S.gm==='xi')&&ph!=='trade')h+=rosterHtml(p);
     else p.roster.forEach(n=>{
       if(ph==='trade'&&!isMe)h+='<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+roleSfx(p,n)+'</button>';
       else h+='<span class="chip">'+esc(n)+roleSfx(p,n)+'</span>';
