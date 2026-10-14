@@ -47,7 +47,74 @@ const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const spoken = n => n.replace(/\(.*?\)/g, '').replace('$', '').replace(/\./g, ' ').trim();
 const key = n => spoken(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const dedupe = arr => { const seen = new Set(); return arr.filter(n => { const k = key(n); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
-const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k) };
+// Personajes del modo Blue Lock (van aquí para que server.js funcione aunque names.js sea una versión antigua)
+const BLUE_NAMES = [
+  'Ryosuke Kira',
+  'Asahi Naruhaya',
+  'Gin Gagamaru',
+  'Gurimu Igarashi',
+  'Hyoma Chigiri',
+  'Jingo Raichi',
+  'Meguru Bachira',
+  'Okuhito Lemon',
+  'Rensuke Kunigami',
+  'Wataru Kuon',
+  'Yoichi Isagi',
+  'Yuudai Imamura',
+  'Ikki Nikko',
+  'Hibiki Ookawa',
+  'Shouei Barou',
+  'Keisuke Wanima',
+  'Junichi Wanima',
+  'Zantetsu Tsurugi',
+  'Reo Mikage',
+  'Seishiro Nagi',
+  'Aoshi Tokimitsu',
+  'Eita Otoya',
+  'Hajime Nishioka',
+  'Jin Kiyora',
+  'Jyubei Aryu',
+  'Kenyu Yukimiya',
+  'Nijiro Nanase',
+  'Ranze Kurona',
+  'Reiji Hiiragi',
+  'Itoshi Rin',
+  'Ryusei Shidou',
+  'Tabito Karasu',
+  'Yo Hiori',
+  'Adam Blake',
+  'Dada Silva',
+  'Julian Loki',
+  'Leonardo Luna',
+  'Pablo Cavasoz',
+  'Gen Fukaku',
+  'Kazuma Niou',
+  'Miroku Darai',
+  'Itoshi Sae',
+  'Shuuto Sendou',
+  'Oliver Aiku',
+  'Teppei Neru',
+  'Alexis Ness',
+  'Michael Kaiser',
+  'Noel Noa',
+  'Lavinho',
+  'Chris Prince',
+  'Agi',
+  'Marc Snuffy',
+  'Don Lorenzo',
+  'Charles Chevalier',
+  'Onazi',
+  'Kuso',
+  'Bello',
+  'Oboabona',
+  'Vivian Hugo',
+  'Camus',
+  'Leyden',
+  'Teddy Knight',
+  'Lookhart',
+  'Bunny Iglesias'
+];
+const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
 // Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
 const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
@@ -251,7 +318,7 @@ io.on('connection', s => {
     if (typeof d.vol === 'number') r.vol = clamp(d.vol, 0, 100);
     if (typeof d.vv === 'number') r.vv = clamp(d.vv, 1, 100);
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
-    if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k')) r.mode = d.mode;
+    if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k' || d.mode === 'b')) r.mode = d.mode;
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
     if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus'].includes(d.gm)) r.gm = d.gm;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
