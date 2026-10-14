@@ -6,7 +6,7 @@ const NAMES = require('./names');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-app.use(express.static(__dirname + '/public'));
+app.use(express.static(__dirname + '/public', { setHeaders: (res, p) => { if (/\.(html|js)$/.test(p)) res.setHeader('Cache-Control', 'no-cache'); } })); // que el navegador no se quede con una versión vieja
 app.get('/health', (q, res) => res.send('ok'));
 
 // ---- Ajustes del juego (cámbialos aquí) ----
