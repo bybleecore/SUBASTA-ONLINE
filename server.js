@@ -16,6 +16,7 @@ const MONEY = 50;        // dinero inicial
 const MONEY_TEMA = 70;   // dinero inicial en el modo «amar tema»
 const MONEY_XI = 100;    // dinero inicial en el modo «armar 11» (Blue Lock)
 const XI_SIZE = 11;      // jugadores del once
+const MARKET_ROUND = 6;  // ronda en la que se abre el mercado (armar 11): intercambios con personajes y dinero entre subastas
 const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre las ofertas
 const BID_MS = 8000;     // tiempo extra tras cada puja
 const DELAY = [2, 3, 4]; // retraso máximo de la voz por dificultad (s)
@@ -145,6 +146,8 @@ const rolesOf = (r, p) => r.gm === 'xi' ? FORMS[p.form || '433']
 const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
+// ¿se puede intercambiar ahora? Siempre en la fase final; en «armar 11» también entre subastas desde la ronda del mercado
+const marketOpen = r => r.phase === 'trade' || (r.gm === 'xi' && r.market && ['idle', 'sold'].includes(r.phase));
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
 const goalOf = r => r.gm === 'xi' ? XI_SIZE : r.gm === 'tema' ? TEMA_TOTAL : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
 const allDone = r => minCount(r) >= goalOf(r);
@@ -166,7 +169,7 @@ function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
-    gm: r.gm, theme: r.theme, goal: goalOf(r), forms: r.gm === 'xi' ? FORMS : null,
+    gm: r.gm, theme: r.theme, goal: goalOf(r), forms: r.gm === 'xi' ? FORMS : null, market: !!r.market, marketRound: MARKET_ROUND,
     slot: temaSlot(r), special: specialOf(temaSlot(r)), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
@@ -198,6 +201,7 @@ function sell(r, p, price, how) {
   if (r.gm === 'tema' && r.curSlot && !p.cast[r.curSlot]) p.cast[r.curSlot] = r.cur; // se coloca solo en el puesto de la ronda si está libre; luego el jugador puede moverlo
   if (r.gm === 'versus') { const f = p.rivals.find(x => !p.cast[x]); if (f) p.cast[f] = r.cur; } // va al primer rival libre; luego el jugador puede moverlo
   p.roster.push(r.cur);
+  if (r.gm === 'xi' && minCount(r) + 1 >= MARKET_ROUND) r.market = true; // se abre al empezar la ronda 6 y ya no se cierra
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
   push(r);
@@ -354,7 +358,7 @@ io.on('connection', s => {
         p.tname = bag.pop();
       });
     }
-    r.curSlot = null;
+    r.curSlot = null; r.market = false;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = '433'; });
     if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
@@ -467,29 +471,56 @@ io.on('connection', s => {
   });
 
   // ---- Intercambios ----
-  s.on('offer', ({ to, give, want } = {}) => {
-    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'trade') return;
+  s.on('offer', ({ to, give, want, cash, cdir } = {}) => {
+    const { r, p } = ctxOf(); if (!r || !p || !marketOpen(r)) return;
     const t = find(r, to);
-    if (!t || t.id === p.id || !p.roster.includes(give) || !t.roster.includes(want)) return;
+    if (!t || t.id === p.id) return;
+    give = give || null; want = want || null;
+    if (give && !p.roster.includes(give)) return;
+    if (want && !t.roster.includes(want)) return;
+    if (r.gm === 'xi') {
+      // en «armar 11» se puede añadir dinero: «pago» (yo pongo) o «pido» (el otro pone)
+      cash = Math.min(999, Math.max(0, Math.floor(+cash) || 0));
+      if (cdir !== 'pay' && cdir !== 'ask') cdir = 'pay';
+      if (!give && !want) return;
+      if (!give && !(cash > 0 && cdir === 'pay')) return; // comprar un personaje: hay que pagar
+      if (!want && !(cash > 0 && cdir === 'ask')) return; // vender un personaje: hay que pedir dinero
+      if (cash > 0 && (cdir === 'pay' ? p : t).money < cash) return; // quien paga debe tener el dinero
+    } else {
+      if (!give || !want) return;
+      cash = 0; cdir = null;
+    }
     if (r.offers.filter(o => o.from === p.id).length >= 6) return;
-    r.offers.push({ id: ++r.oid, from: p.id, to: t.id, give, want });
+    r.offers.push({ id: ++r.oid, from: p.id, to: t.id, give, want, cash, cdir });
     push(r);
   });
 
   s.on('respond', ({ id, ok } = {}) => {
-    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'trade') return;
+    const { r, p } = ctxOf(); if (!r || !p || !marketOpen(r)) return;
     const o = r.offers.find(x => x.id === id); if (!o) return;
     if (o.from === p.id && !ok) { r.offers = r.offers.filter(x => x !== o); return push(r); } // cancelar
     if (o.to !== p.id) return;
     r.offers = r.offers.filter(x => x !== o);
     if (ok) {
       const a = find(r, o.from), b = p;
-      if (a && a.roster.includes(o.give) && b.roster.includes(o.want)) {
-        a.roster[a.roster.indexOf(o.give)] = o.want;
-        b.roster[b.roster.indexOf(o.want)] = o.give;
-        for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) a.cast[k] = o.want;
-        for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) b.cast[k] = o.give;
-        r.offers = r.offers.filter(x => ![x.give, x.want].some(n => n === o.give || n === o.want));
+      const cash = o.cash || 0;
+      const payer = o.cdir === 'pay' ? a : b, getter = payer === a ? b : a;
+      const valid = a && (!o.give || a.roster.includes(o.give)) && (!o.want || b.roster.includes(o.want)) && (!cash || payer.money >= cash);
+      if (valid) {
+        if (o.give && o.want) {
+          a.roster[a.roster.indexOf(o.give)] = o.want;
+          b.roster[b.roster.indexOf(o.want)] = o.give;
+          for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) a.cast[k] = o.want;
+          for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) b.cast[k] = o.give;
+        } else if (o.give) { // vende un personaje por dinero
+          a.roster.splice(a.roster.indexOf(o.give), 1); b.roster.push(o.give);
+          for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) delete a.cast[k];
+        } else if (o.want) { // compra un personaje con dinero
+          b.roster.splice(b.roster.indexOf(o.want), 1); a.roster.push(o.want);
+          for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) delete b.cast[k];
+        }
+        if (cash) { payer.money -= cash; getter.money += cash; }
+        r.offers = r.offers.filter(x => ![x.give, x.want].some(n => n && (n === o.give || n === o.want)));
       }
     }
     push(r);
@@ -518,7 +549,7 @@ io.on('connection', s => {
   s.on('restart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
     r.players = r.players.filter(p => p.on);
-    r.theme = null; r.order = null; r.curSlot = null;
+    r.theme = null; r.order = null; r.curSlot = null; r.market = false;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = '433'; });
     r.offers = []; r.votes = {}; r.results = null; r.last = null;
     r.phase = 'lobby';
