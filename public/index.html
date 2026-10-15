@@ -55,12 +55,18 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .pitch{margin:10px 0;padding:14px 6px;border-radius:10px;background:repeating-linear-gradient(#2e8b4a 0 44px,#2a8044 44px 88px);border:3px solid #e8f5e9;position:relative}
 .pitch:before{content:"";position:absolute;left:8%;right:8%;top:50%;border-top:2px solid #e8f5e955}
 .pline{display:flex;justify-content:space-around;align-items:flex-start;margin:6px 0 14px;position:relative}
-button.slot{display:flex;flex-direction:column;align-items:center;width:76px;margin:0;padding:2px;background:none;color:#fff;font:600 .72rem/1.15 'Work Sans',system-ui,sans-serif;border:0;border-radius:8px}
-button.slot i{font:400 .85rem 'Bowlby One',Impact,sans-serif;font-style:normal;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px dashed #ffffffaa;background:#0003;color:#fff}
-button.slot.full i{background:var(--y);color:#2A1B5E;border:2px solid #fff}
-button.slot.sel i{background:var(--r);color:#fff;border:3px solid #fff;transform:scale(1.12)}
-button.slot span{margin-top:3px;max-width:76px;overflow-wrap:anywhere;text-shadow:0 1px 2px #000}
+.slot{display:flex;flex-direction:column;align-items:center;width:76px;margin:0;padding:2px;background:none;color:#fff;font:600 .72rem/1.15 'Work Sans',system-ui,sans-serif;border:0;border-radius:8px}
+.slot i{font:400 .85rem 'Bowlby One',Impact,sans-serif;font-style:normal;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px dashed #ffffffaa;background:#0003;color:#fff}
+.slot.full i{background:var(--y);color:#2A1B5E;border:2px solid #fff}
+.slot.sel i{background:var(--r);color:#fff;border:3px solid #fff;transform:scale(1.12)}
+.slot span{margin-top:3px;max-width:76px;overflow-wrap:anywhere;text-shadow:0 1px 2px #000}
 .formbar button{margin:0 6px 6px 0}
+.pitch.mini{padding:8px 2px}
+.pitch.mini .pline{margin:3px 0 8px}
+.pitch.mini .slot{width:58px}
+.pitch.mini .slot i{width:34px;height:34px;font-size:.62rem}
+.pitch.mini .slot span{font-size:.6rem;max-width:58px}
+.pfm{margin-top:6px}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -157,6 +163,7 @@ button.slot span{margin-top:3px;max-width:76px;overflow-wrap:anywhere;text-shado
 
   <!-- INTERCAMBIO / VOTACIÓN / FINAL -->
   <section id="endgame" class="hide"><div id="eg"></div></section>
+  <div id="mkt" class="box hide"></div>
   <div id="castBox" class="box hide"></div>
 
   <!-- CHAT -->
@@ -290,18 +297,40 @@ $('bidGo').onclick=()=>{
 };
 $('bidIn').onkeydown=e=>{if(e.key==='Enter')$('bidGo').click()};
 
-$('eg').onclick=e=>{
+function giveOf(){return giveChoice===NONE?null:giveChoice}
+function egClick(e){
   const b=e.target.closest('button[data-act]');if(!b)return;const d=b.dataset;
-  if(d.act==='ask'){if(!giveChoice)return;socket.emit('offer',{to:d.to,give:giveChoice,want:d.want})}
+  if(d.act==='ask'){
+    const give=giveOf(),cash=Math.floor(+cashVal)||0;
+    if(S.gm==='xi'){
+      if(!give&&!(cash>0&&cdirVal==='pay')){alert('Para comprar un personaje sin dar nada, pon «Yo pago» y una cantidad.');return}
+      socket.emit('offer',{to:d.to,give,want:d.want,cash,cdir:cdirVal});
+    }else{if(!giveChoice)return;socket.emit('offer',{to:d.to,give:giveChoice,want:d.want})}
+  }
+  else if(d.act==='sell'){
+    const give=giveOf(),cash=Math.floor(+cashVal)||0;
+    if(!give){alert('Elige qué personaje tuyo vendes en «Yo doy».');return}
+    if(!(cash>0&&cdirVal==='ask')){alert('Para vender, pon «Yo pido» y una cantidad.');return}
+    socket.emit('offer',{to:d.to,give,want:null,cash,cdir:'ask'});
+  }
   else if(d.act==='acc')socket.emit('respond',{id:+d.id,ok:true});
   else if(d.act==='rej'||d.act==='cancel')socket.emit('respond',{id:+d.id,ok:false});
   else if(d.act==='up'||d.act==='down'){const i=+d.i,j=d.act==='up'?i-1:i+1;if(j>=0&&j<rank.length){[rank[i],rank[j]]=[rank[j],rank[i]];render()}}
   else if(d.act==='sendrank')socket.emit('vote',rank);
   else if(d.act==='tovote')socket.emit('voteStart');
   else if(d.act==='vend')socket.emit('voteEnd');
-  else if(d.act==='again'){myVote='';giveChoice='';socket.emit('restart')}
-};
-$('eg').onchange=e=>{if(e.target.id==='giveSel')giveChoice=e.target.value};
+  else if(d.act==='again'){myVote='';giveChoice='';cashVal='';socket.emit('restart')}
+}
+function egChange(e){
+  const id=e.target.id;
+  if(id==='giveSel'){giveChoice=e.target.value;e.target.blur()}
+  else if(id==='cdirSel'){cdirVal=e.target.value;e.target.blur()}
+  else if(id==='cashIn')cashVal=e.target.value;
+}
+['eg','mkt'].forEach(id=>{
+  $(id).onclick=egClick;$(id).onchange=egChange;$(id).oninput=egChange;
+  $(id).addEventListener('focusout',()=>setTimeout(()=>{if(S)render()},80));
+});
 
 /* ---------- RENDER ---------- */
 socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;render()});
@@ -323,6 +352,7 @@ function render(){
   applyPause();
   if(ph==='lobby')rank=[];
   renderCast();
+  renderMkt();
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
@@ -336,7 +366,7 @@ function render(){
   }
 
   if(['idle','auction','roulette','sold'].includes(ph)){
-    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.gm==='tema'?(m&&m.tname?' · Tu temática: '+m.tname:''):S.theme?' · '+S.theme.name:'')+(S.slot?' · Se subasta: '+S.slot:'');
+    $('roundLbl').textContent='Ronda '+S.round+' de '+S.goal+(S.gm==='tema'?(m&&m.tname?' · Tu temática: '+m.tname:''):S.theme?' · '+S.theme.name:'')+(S.slot?' · Se subasta: '+S.slot:'')+(S.gm==='xi'?(S.market?' · 🛒 Mercado abierto':' · Mercado desde la ronda '+S.marketRound):'');
     $('special').textContent=S.special||'';$('special').classList.toggle('hide',!S.special);
     const elig=m&&m.eligible;
     let nm='…',st='',info='';
@@ -421,6 +451,14 @@ const XI_LBL={'433':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MC',M2:'MC'
   '442':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MI',M2:'MC',M3:'MC',M4:'MD',F1:'DC',F2:'DC'}};
 const FORM_TXT={'433':'4-3-3','442':'4-4-2'};
 const xiLbl=(p,k)=>((XI_LBL[p.form||'433']||{})[k])||k;
+function pitchHtml(p,mini){
+  const form=p.form||'433',keys=(S.forms&&S.forms[form])||[];
+  const slot=k=>{const n=(p.cast||{})[k]||'';return '<div class="slot'+(n?' full':'')+'"><i>'+esc(xiLbl(p,k))+'</i><span>'+(n?esc(n):'&nbsp;')+'</span></div>'};
+  const line=pre=>'<div class="pline">'+keys.filter(k=>k.startsWith(pre)).map(slot).join('')+'</div>';
+  const out=(p.roster||[]).filter(n=>!Object.values(p.cast||{}).includes(n));
+  return '<div class="pfm"><small>'+FORM_TXT[form]+'</small></div><div class="pitch'+(mini?' mini':'')+'">'+line('F')+line('M')+line('D')+line('P')+'</div>'+
+    (out.length?'<small>Sin colocar: '+out.map(esc).join(', ')+'</small>':'');
+}
 function roleSfx(p,n){
   if(S.gm!=='cast'&&S.gm!=='tema'&&S.gm!=='versus'&&S.gm!=='xi')return '';
   const k=Object.keys(p.cast||{}).find(k=>p.cast[k]===n);
@@ -428,7 +466,7 @@ function roleSfx(p,n){
   return k?(S.gm==='versus'?' (vs '+k+')':' ('+k+')'):'';
 }
 function rosterHtml(p){
-  if(S.gm==='xi'&&S.forms)return '<span class="chip"><b>'+FORM_TXT[p.form||'433']+'</b></span>'+(S.forms[p.form||'433']||[]).map(k=>'<span class="chip"><b>'+esc(xiLbl(p,k))+':</b> '+esc((p.cast||{})[k]||'—')+'</span>').join('');
+  if(S.gm==='xi'&&S.forms)return pitchHtml(p,true);
   if(S.gm==='versus')return (p.rivals||[]).map(r=>'<span class="chip"><b>'+esc((p.cast||{})[r]||'—')+'</b> VS '+esc(r)+'</span>').join('');
   if(S.gm==='tema'&&S.theme)return '<span class="chip"><b>TEMÁTICA:</b> '+esc(p.tname||'—')+'</span>'+S.theme.slots.map(r=>{const c=(p.chars||{})[r];return '<span class="chip"><b>'+esc(c||r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>'}).join('');
   if(S.gm==='cast'&&S.theme)return S.theme.roles.map(r=>'<span class="chip"><b>'+esc(r)+':</b> '+esc((p.cast||{})[r]||'—')+'</span>').join('');
@@ -511,7 +549,7 @@ function xiClick(e){
 function renderCast(){
   const box=$('castBox'),m=me();
   if(m&&S.gm==='xi'){
-    const show=['idle','auction','roulette','sold'].includes(S.phase);
+    const show=['idle','auction','roulette','sold','trade'].includes(S.phase);
     box.classList.toggle('hide',!show);
     if(show)renderXi(box,m);
     return;
@@ -557,20 +595,62 @@ function castChange(e){
   sel.blur();
 }
 
+const NONE='__none__';
+let cashVal='',cdirVal='pay';
+function offerParts(o,pron){
+  const gives=[],wants=[];
+  if(o.give)gives.push('<b>'+esc(o.give)+'</b>');
+  if(o.cash&&o.cdir==='pay')gives.push('<b>'+o.cash+'$</b>');
+  if(o.want)wants.push(pron+' <b>'+esc(o.want)+'</b>');
+  if(o.cash&&o.cdir==='ask')wants.push('<b>'+o.cash+'$</b>');
+  return {g:gives.join(' + '),w:wants.join(' + ')};
+}
+function offersHtml(m){
+  const mine=S.offers.filter(o=>o.from===myId||o.to===myId);
+  if(!mine.length)return '';
+  let h='<h2>Ofertas</h2>';
+  mine.forEach(o=>{
+    if(o.to===myId){
+      const t=offerParts(o,'tu'),short=o.cdir==='ask'&&o.cash>m.money;
+      h+='<div class="card"><b>'+esc(nameOf(o.from))+'</b> te da '+t.g+' por '+t.w+(short?'<br><small>No te alcanza el dinero ('+m.money+'$).</small>':'')+'<br><button class="sm" data-act="acc" data-id="'+o.id+'"'+(short?' disabled':'')+'>Aceptar</button><button class="sm alt" data-act="rej" data-id="'+o.id+'">Rechazar</button></div>';
+    }else{
+      const t=offerParts(o,'su');
+      h+='<div class="card">Ofreces '+t.g+' a '+esc(nameOf(o.to))+' por '+t.w+'<br><button class="sm alt" data-act="cancel" data-id="'+o.id+'">Cancelar</button></div>';
+    }
+  });
+  return h;
+}
+function giveControls(m){
+  if(giveChoice!==NONE&&!m.roster.includes(giveChoice))giveChoice=m.roster[0]||(S.gm==='xi'?NONE:'');
+  let h='<label for="giveSel">Yo doy:</label><select id="giveSel">'+(S.gm==='xi'?'<option value="'+NONE+'"'+(giveChoice===NONE?' selected':'')+'>— nada (compro con $) —</option>':'')+
+    m.roster.map(n=>'<option value="'+esc(n)+'"'+(n===giveChoice?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
+  if(S.gm==='xi'){
+    h+='<label for="cashIn">Dinero (tienes '+m.money+'$)</label><div class="row"><select id="cdirSel" style="flex:1"><option value="pay"'+(cdirVal==='pay'?' selected':'')+'>Yo pago</option><option value="ask"'+(cdirVal==='ask'?' selected':'')+'>Yo pido</option></select>'+
+      '<input id="cashIn" type="number" min="0" max="999" inputmode="numeric" placeholder="0$" value="'+esc(cashVal)+'" style="flex:1"></div>';
+  }
+  return h;
+}
+// mercado abierto entre subastas (armar 11, desde la ronda 6)
+function renderMkt(){
+  const box=$('mkt'),m=me();
+  const show=!!(m&&S.gm==='xi'&&S.market&&['idle','sold'].includes(S.phase));
+  box.classList.toggle('hide',!show);
+  if(!show){box.innerHTML='';return}
+  const a=document.activeElement;
+  if(box.contains(a)&&['INPUT','SELECT'].includes(a.tagName))return;
+  let h='<h2 style="margin-top:0">🛒 Mercado abierto</h2><p><small>Entre subastas puedes cambiar personajes y dinero con otros jugadores. Elige qué das, cuánto dinero (si quieres) y pulsa un personaje ajeno. Para vender uno tuyo por dinero, pon «Yo pido» y pulsa «Vender a…».</small></p>';
+  h+=giveControls(m)+offersHtml(m);
+  S.players.filter(p=>p.id!==myId).forEach(p=>{
+    h+='<div class="card"><b>'+esc(p.name)+'</b> · '+p.money+'$<div>'+p.roster.map(n=>'<button class="sm alt" data-act="ask" data-to="'+esc(p.id)+'" data-want="'+esc(n)+'">'+esc(n)+roleSfx(p,n)+'</button>').join('')+'</div>'+
+      '<button class="sm" data-act="sell" data-to="'+esc(p.id)+'">Vender mi personaje a '+esc(p.name)+'</button>'+pitchHtml(p,true)+'</div>';
+  });
+  box.innerHTML=h;
+}
 function renderEnd(m,host,ph){
   let h='';
-  if(!m.roster.includes(giveChoice))giveChoice=m.roster[0]||'';
   if(ph==='trade'){
-    h+='<h2>Intercambios</h2><p>Elige qué personaje das y pulsa uno de otro jugador para proponerle el cambio 1×1.</p>';
-    h+='<label for="giveSel">Yo doy:</label><select id="giveSel">'+m.roster.map(n=>'<option value="'+esc(n)+'"'+(n===giveChoice?' selected':'')+'>'+esc(n)+'</option>').join('')+'</select>';
-    const mine=S.offers.filter(o=>o.from===myId||o.to===myId);
-    if(mine.length){
-      h+='<h2>Ofertas</h2>';
-      mine.forEach(o=>{
-        if(o.to===myId)h+='<div class="card"><b>'+esc(nameOf(o.from))+'</b> te da <b>'+esc(o.give)+'</b> por tu <b>'+esc(o.want)+'</b><br><button class="sm" data-act="acc" data-id="'+o.id+'">Aceptar</button><button class="sm alt" data-act="rej" data-id="'+o.id+'">Rechazar</button></div>';
-        else h+='<div class="card">Ofreces <b>'+esc(o.give)+'</b> a '+esc(nameOf(o.to))+' por su <b>'+esc(o.want)+'</b><br><button class="sm alt" data-act="cancel" data-id="'+o.id+'">Cancelar</button></div>';
-      });
-    }
+    h+='<h2>Intercambios</h2><p>Elige qué personaje das'+(S.gm==='xi'?' (y dinero si quieres)':'')+' y pulsa uno de otro jugador para proponerle el cambio'+(S.gm==='xi'?'. Para vender uno tuyo por dinero, pon «Yo pido» y pulsa «Vender a…»':' 1×1')+'.</p>';
+    h+=giveControls(m)+offersHtml(m);
   }
   if(ph==='vote'){
     const others=S.players.filter(p=>p.id!==myId).map(p=>p.id);
@@ -605,6 +685,7 @@ function renderEnd(m,host,ph){
       else h+='<span class="chip">'+esc(n)+roleSfx(p,n)+'</span>';
     });
     h+='</div>';
+    if(ph==='trade'&&S.gm==='xi'&&!isMe)h+='<button class="sm" data-act="sell" data-to="'+esc(p.id)+'">Vender mi personaje a '+esc(p.name)+'</button>'+pitchHtml(p,true);
     if(ph==='vote'&&!isMe)h+='<button class="sm'+(myVote===p.id?' sel':'')+'" data-act="vote" data-to="'+esc(p.id)+'">'+(myVote===p.id?'Tu voto ✔':'Votar')+'</button>';
     h+='</div>';
   });
