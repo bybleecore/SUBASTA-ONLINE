@@ -15,6 +15,7 @@ const GOAL = 5;          // personajes que hay que conseguir (= número de ronda
 const MONEY = 50;        // dinero inicial
 const MONEY_TEMA = 70;   // dinero inicial en el modo «amar tema»
 const MONEY_XI = 100;    // dinero inicial en el modo «armar 11» (Blue Lock)
+const MONEY_BEST = 100;  // dinero inicial en «armar el mejor»
 const XI_SIZE = 11;      // jugadores del once
 const MARKET_ROUND = 6;  // ronda en la que se abre el mercado (armar 11): intercambios con personajes y dinero entre subastas
 const OPEN_MS = 25000;   // segundos para ofertar desde que el anfitrión abre las ofertas
@@ -41,6 +42,12 @@ function buildTema(name) {
 const FORMS = {
   '433': ['POR', 'D1', 'D2', 'D3', 'D4', 'M1', 'M2', 'M3', 'F1', 'F2', 'F3'],
   '442': ['POR', 'D1', 'D2', 'D3', 'D4', 'M1', 'M2', 'M3', 'M4', 'F1', 'F2']
+};
+// Modo «armar el mejor»: categorías que se llenan con los personajes que salgan (una lista por modo de personajes)
+const BEST = {
+  f: ['Visitas', 'Punchline', 'Respuestas', 'Puesta en escena', 'Flow', 'Skills', 'Autenticidad', 'Perfil', 'Ingenio', 'Prime'],
+  k: ['Contenido (Variedad)', 'Manejo vocal', 'Agudos', 'Graves', 'Interpretacion', 'Potencia', 'Flow', 'Escritura', 'Comunidad', 'Experiencia', 'Proyeccion', 'Contactos', 'Estilo', 'Contenido y variedad', 'Gestion de apartado tecnico'],
+  b: ['Control', 'Tiro', 'Lectura de campo', 'Regate', 'Estado De Flow', 'Pase', 'Defensa', 'Velocidad', 'Equipo profesional', 'Estilo de juego', 'Liderazgo']
 };
 const CHAT_MAX = 50;      // mensajes del chat que se guardan por sala
 const CHAT_LEN = 200;     // longitud máxima de un mensaje
@@ -128,7 +135,7 @@ const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokky
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
 const TEMA_INSTR = dedupe(INSTR_NAMES);
 const TEMA_VIDEO = dedupe([...POOL.k, ...VIDEO_EXTRA]); // cualquier artista + los agregados
-const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : r.gm === 'xi' ? MONEY_XI : MONEY;
+const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : r.gm === 'xi' ? MONEY_XI : r.gm === 'best' ? MONEY_BEST : MONEY;
 // Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
 const poolFor = r => {
   if (r.gm === 'tema') {
@@ -142,16 +149,22 @@ const poolFor = r => {
 const rolesOf = (r, p) => r.gm === 'xi' ? FORMS[p.form || '433']
   : r.gm === 'versus' ? p.rivals
   : (r.gm === 'tema' && r.theme) ? r.theme.slots
-  : (r.gm === 'cast' && r.theme) ? r.theme.roles : null;
+  : ((r.gm === 'cast' || r.gm === 'best') && r.theme) ? r.theme.roles : null;
 const specialOf = slot => (slot === 'INSTRUMENTAL' || slot === 'VIDEO') ? '⭐ Ronda especial' : null;
 const freeLeft = r => poolFor(r).filter(n => !r.used.has(key(n)));
 const find = (r, id) => r.players.find(p => p.id === id);
 // ¿se puede intercambiar ahora? Siempre en la fase final; en «armar 11» también entre subastas desde la ronda del mercado
 const marketOpen = r => r.phase === 'trade' || (r.gm === 'xi' && r.market && ['idle', 'sold'].includes(r.phase));
 const minCount = r => Math.min(...r.players.map(p => p.roster.length));
-const goalOf = r => r.gm === 'xi' ? XI_SIZE : r.gm === 'tema' ? TEMA_TOTAL : (r.gm === 'cast' && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
-const allDone = r => minCount(r) >= goalOf(r);
-const eligible = r => { const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m); };
+const duel = r => r.players.length === 2; // 1 vs 1: no hay rondas, puja cualquiera que aún no tenga el cupo completo
+const roundIdx = r => duel(r) ? Math.min(Math.floor((r.sales || 0) / 2), 99) : minCount(r); // «ronda» para elegir el puesto en «amar tema»
+const rdOf = r => Math.floor((r.sales || 0) / Math.max(1, r.players.length)) + 1; // ronda según subastas hechas (para el mercado)
+const goalOf = r => r.gm === 'xi' ? XI_SIZE : r.gm === 'tema' ? TEMA_TOTAL : ((r.gm === 'cast' || r.gm === 'best') && r.theme) ? r.theme.roles.length : GOAL; // personajes por jugador
+const allDone = r => duel(r) ? r.players.every(p => p.roster.length >= goalOf(r)) : minCount(r) >= goalOf(r);
+const eligible = r => {
+  if (duel(r)) return r.players.filter(p => p.roster.length < goalOf(r)); // da igual que uno tenga 3 y el rival 0
+  const m = minCount(r); return m >= goalOf(r) ? [] : r.players.filter(p => p.roster.length === m);
+};
 
 function newCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -163,14 +176,14 @@ function newCode() {
 // Puesto que se está subastando (o el siguiente, si aún no se lanzó)
 function temaSlot(r) {
   if (r.gm !== 'tema' || !r.order || r.phase === 'lobby') return null;
-  return ['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : (r.order[minCount(r)] || null);
+  return ['auction', 'roulette', 'sold'].includes(r.phase) ? r.curSlot : (r.order[Math.min(roundIdx(r), r.order.length - 1)] || null);
 }
 function view(r) {
   const el = eligible(r);
   return {
     code: r.code, hostId: r.hostId, phase: r.phase, mode: r.mode, dif: r.dif, vol: r.vol, vv: r.vv,
     gm: r.gm, theme: r.theme, goal: goalOf(r), forms: r.gm === 'xi' ? FORMS : null, market: !!r.market, marketRound: MARKET_ROUND,
-    slot: temaSlot(r), special: specialOf(temaSlot(r)), round: allDone(r) ? goalOf(r) : minCount(r) + 1,
+    slot: temaSlot(r), special: specialOf(temaSlot(r)), round: duel(r) ? null : allDone(r) ? goalOf(r) : minCount(r) + 1, duel: duel(r), sales: r.sales || 0, mktAt: (MARKET_ROUND - 1) * r.players.length,
     bid: r.bid, bidder: r.bidder,
     ms: r.phase === 'roulette' ? Math.max(0, r.endsAt - Date.now()) : (r.phase === 'auction' && r.bidsOpen ? (r.paused ? r.pausedLeft : Math.max(0, r.endsAt - Date.now())) : 0),
     paused: !!r.paused, bidsOpen: !!r.bidsOpen, plays: r.plays || 0, maxPlays: MAX_PLAYS, openMs: OPEN_MS,
@@ -201,7 +214,8 @@ function sell(r, p, price, how) {
   if (r.gm === 'tema' && r.curSlot && !p.cast[r.curSlot]) p.cast[r.curSlot] = r.cur; // se coloca solo en el puesto de la ronda si está libre; luego el jugador puede moverlo
   if (r.gm === 'versus') { const f = p.rivals.find(x => !p.cast[x]); if (f) p.cast[f] = r.cur; } // va al primer rival libre; luego el jugador puede moverlo
   p.roster.push(r.cur);
-  if (r.gm === 'xi' && minCount(r) + 1 >= MARKET_ROUND) r.market = true; // se abre al empezar la ronda 6 y ya no se cierra
+  r.sales = (r.sales || 0) + 1;
+  if (r.gm === 'xi' && rdOf(r) === MARKET_ROUND) r.market = true; // el mercado se abre al empezar la ronda 6 y dura solo esa ronda
   r.last = { name: r.cur, winner: p.id, price, how, bids: r.reveal ? r.reveal.bids : null, tie: r.reveal ? r.reveal.tie : null };
   r.phase = 'sold';
   push(r);
@@ -237,8 +251,9 @@ function close(r) {
 }
 
 function startAuction(r) {
+  if (r.market && rdOf(r) > MARKET_ROUND) { r.market = false; r.offers = []; } // terminó la ronda del mercado
   const el = eligible(r);
-  r.curSlot = r.gm === 'tema' && r.order ? r.order[minCount(r)] : null;
+  r.curSlot = r.gm === 'tema' && r.order ? r.order[Math.min(roundIdx(r), r.order.length - 1)] : null;
   r.cur = pickName(r);
   r.bid = 0; r.bidder = null; r.last = null;
   r.sealed = {}; r.reveal = null;
@@ -276,6 +291,29 @@ function finishVote(r) {
   const max = Math.max(...Object.values(tally));
   r.results = { tally, winners: max > 0 ? r.players.filter(p => tally[p.id] === max).map(p => p.id) : [] };
   r.phase = 'end';
+  push(r);
+}
+
+function toLobby(r) {
+  clearTimeout(r.timer);
+  r.players = r.players.filter(p => p.on);
+  r.theme = null; r.order = null; r.curSlot = null; r.market = false; r.sales = 0;
+  r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = '433'; });
+  r.offers = []; r.votes = {}; r.results = null; r.last = null; r.sealed = {}; r.reveal = null; r.bid = 0; r.bidder = null; r.bidsOpen = false; r.paused = false;
+  r.phase = 'lobby';
+  push(r);
+}
+function removePlayer(r, t) {
+  r.players = r.players.filter(q => q !== t);
+  r.offers = r.offers.filter(o => o.from !== t.id && o.to !== t.id);
+  delete r.votes[t.id];
+  Object.keys(r.votes).forEach(k => { r.votes[k] = r.votes[k].filter(id => id !== t.id); });
+  delete r.sealed[t.id];
+  if (r.bidder === t.id) { r.bidder = null; r.bid = 0; }
+  if (r.last && r.last.winner === t.id) r.last = null;
+  if (r.phase !== 'lobby' && r.players.length < 2) return toLobby(r); // sin rivales no hay partida
+  if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
+  if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
   push(r);
 }
 
@@ -332,10 +370,10 @@ io.on('connection', s => {
     if ([0, 1, 2].includes(+d.dif)) r.dif = +d.dif;
     if (r.phase === 'lobby' && (d.mode === 'f' || d.mode === 'k' || d.mode === 'b')) r.mode = d.mode;
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
-    if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus'].includes(d.gm)) r.gm = d.gm;
+    if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus', 'best', 'xi'].includes(d.gm)) r.gm = d.gm;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
     if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std'; // versus solo existe con Freestylers
-    if (r.mode === 'b') r.gm = 'xi'; // Blue Lock siempre es «armar 11»
+    if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } // Blue Lock: «armar 11» o «armar el mejor»
     else if (r.gm === 'xi') r.gm = 'std';
     if (r.phase === 'lobby') r.players.forEach(p => p.money = moneyOf(r));
     push(r);
@@ -345,8 +383,9 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < 2) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
     if (r.gm === 'versus' && r.mode !== 'f') r.gm = 'std';
-    if (r.mode === 'b') r.gm = 'xi'; else if (r.gm === 'xi') r.gm = 'std';
+    if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } else if (r.gm === 'xi') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
+      : r.gm === 'best' ? { name: 'ARMAR EL MEJOR', roles: BEST[r.mode] }
       : null;
     r.order = null;
     if (r.gm === 'tema') {
@@ -358,7 +397,7 @@ io.on('connection', s => {
         p.tname = bag.pop();
       });
     }
-    r.curSlot = null; r.market = false;
+    r.curSlot = null; r.market = false; r.sales = 0;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = '433'; });
     if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
@@ -548,12 +587,15 @@ io.on('connection', s => {
 
   s.on('restart', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'end') return;
-    r.players = r.players.filter(p => p.on);
-    r.theme = null; r.order = null; r.curSlot = null; r.market = false;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = '433'; });
-    r.offers = []; r.votes = {}; r.results = null; r.last = null;
-    r.phase = 'lobby';
-    push(r);
+    toLobby(r);
+  });
+
+  // ---- Sacar de la sala a un jugador desconectado (solo el anfitrión) ----
+  s.on('kick', id => {
+    const { r, p } = hostCtx(); if (!r) return;
+    const t = find(r, id);
+    if (!t || t.id === p.id || t.on) return; // solo se puede sacar a quien está sin conexión
+    removePlayer(r, t);
   });
 
   s.on('disconnect', () => {
