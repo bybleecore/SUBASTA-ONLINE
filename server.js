@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const fs = require('fs');
 const NAMES = require('./names');
 
 const app = express();
@@ -8,6 +9,20 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(__dirname + '/public', { setHeaders: (res, p) => { if (/\.(html|js)$/.test(p)) res.setHeader('Cache-Control', 'no-cache'); } })); // que el navegador no se quede con una versión vieja
 app.get('/health', (q, res) => res.send('ok'));
+// Modo solo / sin conexión: el navegador descarga el MISMO motor de este archivo (lo que hay entre los dos marcadores) y lo ejecuta en local con bots
+let ENGINE_JS = null;
+app.get('/engine.js', (q, res) => {
+  try {
+    if (!ENGINE_JS) {
+      const src = fs.readFileSync(__filename, 'utf8');
+      const a = src.indexOf('// >>> ' + 'ENGINE START'), b = src.indexOf('// <<< ' + 'ENGINE END');
+      ENGINE_JS = 'window.__makeEngine=function(io){\nconst NAMES=' + JSON.stringify(NAMES) + ';\n' + src.slice(a, b) + '\n};';
+    }
+    res.set('Content-Type', 'application/javascript; charset=utf-8').set('Cache-Control', 'no-cache').send(ENGINE_JS);
+  } catch (e) { res.status(500).send('// motor no disponible'); }
+});
+
+// >>> ENGINE START (todo lo de aquí hasta ENGINE END también se ejecuta en el navegador en el modo solo)
 
 // ---- Ajustes del juego (cámbialos aquí) ----
 const MAXP = 10;         // máximo de jugadores por sala
@@ -191,7 +206,7 @@ function view(r) {
     sealed: r.auc === 'blind' && r.phase === 'auction' ? Object.keys(r.sealed) : [],
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
-    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, eligible: el.includes(p) })),
+    players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
     offers: r.offers,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
@@ -209,6 +224,7 @@ function pickName(r) {
 
 function sell(r, p, price, how) {
   clearTimeout(r.timer);
+  r.players.forEach(b => { clearTimeout(b.bt); b.bt = null; });
   r.paused = false; r.bidsOpen = false;
   p.money -= price;
   if (r.gm === 'tema' && r.curSlot && !p.cast[r.curSlot]) p.cast[r.curSlot] = r.cur; // se coloca solo en el puesto de la ronda si está libre; luego el jugador puede moverlo
@@ -257,6 +273,7 @@ function startAuction(r) {
   r.cur = pickName(r);
   r.bid = 0; r.bidder = null; r.last = null;
   r.sealed = {}; r.reveal = null;
+  botPlan(r);
   if (el.length === 1) { // el último de la ronda: compra directa a 1$
     return sell(r, el[0], Math.min(1, el[0].money), 'solo');
   }
@@ -294,16 +311,125 @@ function finishVote(r) {
   push(r);
 }
 
+// ---- Pujas (jugadores y bots) ----
+function doBid(r, p, n) {
+  if (r.phase !== 'auction' || !r.bidsOpen || r.paused) return;
+  n = Math.floor(+n);
+  if (r.auc === 'blind') { // oferta secreta: una sola vez, sin cambios
+    if (!(n >= 0) || n > p.money || !eligible(r).includes(p) || p.id in r.sealed) return;
+    r.sealed[p.id] = n;
+    if (eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
+    return push(r);
+  }
+  if (!(n > r.bid) || n > p.money || !eligible(r).includes(p) || r.bidder === p.id) return;
+  r.bid = n; r.bidder = p.id;
+  const left = Math.max(BID_MS, r.endsAt - Date.now());
+  r.endsAt = Date.now() + left;
+  clearTimeout(r.timer);
+  r.timer = setTimeout(() => close(r), left);
+  push(r);
+  botTick(r);
+}
+
+// ---- Bots (para jugar solo o completar una sala) ----
+const BOT_NAMES = ['Kuro', 'Nami', 'Rex', 'Luna', 'Toru', 'Mika', 'Zed', 'Kira', 'Dante', 'Yuki'];
+const rnd = (a, b) => a + Math.random() * (b - a);
+function botPlan(r) { // al empezar cada subasta cada bot decide lo máximo que pagaría
+  r.players.forEach(b => {
+    if (!b.bot) return;
+    clearTimeout(b.bt); b.bt = null;
+    const need = Math.max(1, goalOf(r) - b.roster.length);
+    const fair = (b.money - (need - 1)) / need; // deja al menos 1$ por cada personaje que le falta
+    b.max = Math.max(0, Math.min(b.money, Math.floor(fair * rnd(0.5, 2.2))));
+  });
+}
+function botTick(r) {
+  if (r.phase !== 'auction' || !r.bidsOpen || r.paused) return;
+  const el = eligible(r);
+  r.players.forEach(b => {
+    if (!b.bot || b.bt || !el.includes(b)) return;
+    if (r.auc === 'blind') {
+      if (b.id in r.sealed) return;
+      b.bt = setTimeout(() => { b.bt = null; botBlind(r, b); }, rnd(1500, 9000));
+    } else {
+      if (r.bidder === b.id || r.bid >= Math.min(b.max, b.money)) return;
+      b.bt = setTimeout(() => { b.bt = null; botBid(r, b); }, rnd(900, 3500));
+    }
+  });
+}
+function botBid(r, b) {
+  if (r.phase !== 'auction' || !r.bidsOpen || r.paused || r.auc === 'blind' || r.bidder === b.id) return;
+  const cap = Math.min(b.max, b.money);
+  if (r.bid >= cap) return;
+  doBid(r, b, Math.min(cap, r.bid + 1 + Math.floor(Math.random() * 3)));
+}
+function botBlind(r, b) {
+  if (r.phase !== 'auction' || !r.bidsOpen || r.paused || r.auc !== 'blind' || b.id in r.sealed) return;
+  doBid(r, b, Math.floor(rnd(0, Math.min(b.max, b.money) + 1)));
+}
+function botVotes(r) {
+  r.players.forEach(b => {
+    if (!b.bot) return;
+    setTimeout(() => {
+      if (r.phase !== 'vote' || b.id in r.votes || !find(r, b.id)) return;
+      r.votes[b.id] = r.players.filter(q => q.id !== b.id).map(q => q.id).sort(() => Math.random() - 0.5);
+      if (r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
+      push(r);
+    }, rnd(1500, 5000));
+  });
+}
+function botReply(r, o) { // un bot responde a una oferta que le hacen (acepta una parte de las veces)
+  const b = find(r, o.to); if (!b || !b.bot) return;
+  setTimeout(() => {
+    if (!marketOpen(r) || !r.offers.includes(o)) return;
+    respondOffer(r, b, o.id, Math.random() < (0.25 + (o.cash && o.cdir === 'pay' ? 0.25 : 0)));
+  }, rnd(1500, 4000));
+}
+
+// ---- Intercambios: responder (jugadores y bots) ----
+function respondOffer(r, p, id, ok) {
+  if (!marketOpen(r)) return;
+  const o = r.offers.find(x => x.id === id); if (!o) return;
+  if (o.from === p.id && !ok) { r.offers = r.offers.filter(x => x !== o); return push(r); } // cancelar
+  if (o.to !== p.id) return;
+  r.offers = r.offers.filter(x => x !== o);
+  if (ok) {
+    const a = find(r, o.from), b = p;
+    const cash = o.cash || 0;
+    const payer = o.cdir === 'pay' ? a : b, getter = payer === a ? b : a;
+    const valid = a && (!o.give || a.roster.includes(o.give)) && (!o.want || b.roster.includes(o.want)) && (!cash || payer.money >= cash);
+    if (valid) {
+      if (o.give && o.want) {
+        a.roster[a.roster.indexOf(o.give)] = o.want;
+        b.roster[b.roster.indexOf(o.want)] = o.give;
+        for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) a.cast[k] = o.want;
+        for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) b.cast[k] = o.give;
+      } else if (o.give) { // vende un personaje por dinero
+        a.roster.splice(a.roster.indexOf(o.give), 1); b.roster.push(o.give);
+        for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) delete a.cast[k];
+      } else if (o.want) { // compra un personaje con dinero
+        b.roster.splice(b.roster.indexOf(o.want), 1); a.roster.push(o.want);
+        for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) delete b.cast[k];
+      }
+      if (cash) { payer.money -= cash; getter.money += cash; }
+      r.offers = r.offers.filter(x => ![x.give, x.want].some(n => n && (n === o.give || n === o.want)));
+    }
+  }
+  push(r);
+}
+
 function toLobby(r) {
   clearTimeout(r.timer);
+  r.players.forEach(b => { clearTimeout(b.bt); b.bt = null; });
   r.players = r.players.filter(p => p.on);
   r.theme = null; r.order = null; r.curSlot = null; r.market = false; r.sales = 0;
-  r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = '433'; });
+  r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.tname = null; p.rivals = []; p.form = (p.bot && Math.random() < 0.5) ? '442' : '433'; });
   r.offers = []; r.votes = {}; r.results = null; r.last = null; r.sealed = {}; r.reveal = null; r.bid = 0; r.bidder = null; r.bidsOpen = false; r.paused = false;
   r.phase = 'lobby';
   push(r);
 }
 function removePlayer(r, t) {
+  clearTimeout(t.bt);
   r.players = r.players.filter(q => q !== t);
   r.offers = r.offers.filter(o => o.from !== t.id && o.to !== t.id);
   delete r.votes[t.id];
@@ -398,7 +524,7 @@ io.on('connection', s => {
       });
     }
     r.curSlot = null; r.market = false; r.sales = 0;
-    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = '433'; });
+    r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = (p.bot && Math.random() < 0.5) ? '442' : '433'; });
     if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
       let bag = [...POOL.f].sort(() => Math.random() - 0.5);
@@ -434,6 +560,7 @@ io.on('connection', s => {
     clearTimeout(r.timer);
     r.timer = setTimeout(() => close(r), OPEN_MS);
     push(r);
+    botTick(r);
   });
 
   s.on('pause', () => {
@@ -446,24 +573,12 @@ io.on('connection', s => {
       if (r.bidsOpen) { r.endsAt = Date.now() + r.pausedLeft; r.timer = setTimeout(() => close(r), r.pausedLeft); }
     }
     push(r);
+    botTick(r);
   });
 
   s.on('bid', n => {
-    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'auction' || !r.bidsOpen || r.paused) return;
-    n = Math.floor(+n);
-    if (r.auc === 'blind') { // oferta secreta: una sola vez, sin cambios
-      if (!(n >= 0) || n > p.money || !eligible(r).includes(p) || p.id in r.sealed) return;
-      r.sealed[p.id] = n;
-      if (eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
-      return push(r);
-    }
-    if (!(n > r.bid) || n > p.money || !eligible(r).includes(p) || r.bidder === p.id) return;
-    r.bid = n; r.bidder = p.id;
-    const left = Math.max(BID_MS, r.endsAt - Date.now());
-    r.endsAt = Date.now() + left;
-    clearTimeout(r.timer);
-    r.timer = setTimeout(() => close(r), left);
-    push(r);
+    const { r, p } = ctxOf(); if (!r || !p) return;
+    doBid(r, p, n);
   });
 
   // ---- Cast ----
@@ -530,39 +645,15 @@ io.on('connection', s => {
       cash = 0; cdir = null;
     }
     if (r.offers.filter(o => o.from === p.id).length >= 6) return;
-    r.offers.push({ id: ++r.oid, from: p.id, to: t.id, give, want, cash, cdir });
+    const o = { id: ++r.oid, from: p.id, to: t.id, give, want, cash, cdir };
+    r.offers.push(o);
     push(r);
+    botReply(r, o);
   });
 
   s.on('respond', ({ id, ok } = {}) => {
-    const { r, p } = ctxOf(); if (!r || !p || !marketOpen(r)) return;
-    const o = r.offers.find(x => x.id === id); if (!o) return;
-    if (o.from === p.id && !ok) { r.offers = r.offers.filter(x => x !== o); return push(r); } // cancelar
-    if (o.to !== p.id) return;
-    r.offers = r.offers.filter(x => x !== o);
-    if (ok) {
-      const a = find(r, o.from), b = p;
-      const cash = o.cash || 0;
-      const payer = o.cdir === 'pay' ? a : b, getter = payer === a ? b : a;
-      const valid = a && (!o.give || a.roster.includes(o.give)) && (!o.want || b.roster.includes(o.want)) && (!cash || payer.money >= cash);
-      if (valid) {
-        if (o.give && o.want) {
-          a.roster[a.roster.indexOf(o.give)] = o.want;
-          b.roster[b.roster.indexOf(o.want)] = o.give;
-          for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) a.cast[k] = o.want;
-          for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) b.cast[k] = o.give;
-        } else if (o.give) { // vende un personaje por dinero
-          a.roster.splice(a.roster.indexOf(o.give), 1); b.roster.push(o.give);
-          for (const k of Object.keys(a.cast)) if (a.cast[k] === o.give) delete a.cast[k];
-        } else if (o.want) { // compra un personaje con dinero
-          b.roster.splice(b.roster.indexOf(o.want), 1); a.roster.push(o.want);
-          for (const k of Object.keys(b.cast)) if (b.cast[k] === o.want) delete b.cast[k];
-        }
-        if (cash) { payer.money -= cash; getter.money += cash; }
-        r.offers = r.offers.filter(x => ![x.give, x.want].some(n => n && (n === o.give || n === o.want)));
-      }
-    }
-    push(r);
+    const { r, p } = ctxOf(); if (!r || !p) return;
+    respondOffer(r, p, id, ok);
   });
 
   // ---- Votación ----
@@ -571,6 +662,7 @@ io.on('connection', s => {
     autofill(r);
     r.phase = 'vote'; r.votes = {}; r.offers = [];
     push(r);
+    botVotes(r);
   });
   s.on('vote', ranking => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'vote' || p.id in r.votes) return;
@@ -590,11 +682,21 @@ io.on('connection', s => {
     toLobby(r);
   });
 
+  // ---- Bots ----
+  s.on('addBot', () => {
+    const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length >= MAXP) return;
+    const taken = new Set(r.players.map(q => q.name));
+    const nm = '🤖 ' + (BOT_NAMES.find(n => !taken.has('🤖 ' + n)) || 'Bot ' + (r.players.length + 1));
+    const id = 'p' + (++pidSeq);
+    r.players.push({ id, tok: 'bot-' + id, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null, rivals: [], form: '433', bot: true, max: 0, bt: null });
+    push(r);
+  });
+
   // ---- Sacar de la sala a un jugador desconectado (solo el anfitrión) ----
   s.on('kick', id => {
     const { r, p } = hostCtx(); if (!r) return;
     const t = find(r, id);
-    if (!t || t.id === p.id || t.on) return; // solo se puede sacar a quien está sin conexión
+    if (!t || t.id === p.id || (t.on && !t.bot)) return; // solo se puede sacar a quien está sin conexión (o a un bot)
     removePlayer(r, t);
   });
 
@@ -604,8 +706,8 @@ io.on('connection', s => {
     const p = find(r, x.pid); if (!p || p.sid !== s.id) return;
     p.on = false;
     if (r.phase === 'lobby') r.players = r.players.filter(q => q !== p);
-    if (r.hostId === p.id) { const n = r.players.find(q => q.on); if (n) r.hostId = n.id; }
-    if (!r.players.some(q => q.on)) {
+    if (r.hostId === p.id) { const n = r.players.find(q => q.on && !q.bot); if (n) r.hostId = n.id; }
+    if (!r.players.some(q => q.on && !q.bot)) {
       r.gc = setTimeout(() => { clearTimeout(r.timer); delete rooms[r.code]; }, 10 * 60 * 1000);
     } else {
       if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
@@ -615,5 +717,6 @@ io.on('connection', s => {
   });
 });
 
+// <<< ENGINE END
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('Subasta a sordas escuchando en el puerto ' + PORT));
