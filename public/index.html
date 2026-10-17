@@ -84,6 +84,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <label for="cd">…o únete con un código</label>
   <input id="cd" maxlength="4" placeholder="ABCD" autocomplete="off" style="text-transform:uppercase">
   <button id="join" class="alt">Unirme</button>
+  <hr style="border:0;border-top:2px dashed #ffffff44;margin:16px 0">
+  <button id="solo" class="alt">🤖 Jugar solo (sin conexión)</button>
+  <small>Juegas contra bots y no necesitas internet (la primera vez hay que abrir la página con conexión para descargarlo).</small>
   <div id="err"></div>
 </section>
 
@@ -100,7 +103,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 
   <!-- LOBBY -->
   <section id="lobby">
-    <p>Pasa el código <b id="codeBig"></b> a tus amigos. Cuando estéis todos, el anfitrión empieza.</p>
+    <p id="lobbyHelp">Pasa el código <b id="codeBig"></b> a tus amigos. Cuando estéis todos, el anfitrión empieza.</p>
     <div id="plLobby"></div>
     <div id="hostLobby" class="hide">
       <label for="modo">Modo de juego</label>
@@ -111,6 +114,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
       <select id="dif"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
+      <button id="addBot" class="alt">🤖 Añadir bot</button>
       <button id="start">Empezar partida</button>
     </div>
     <p id="waitHost" class="hide">Esperando al anfitrión…</p>
@@ -179,13 +183,36 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </main>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/engine.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const LV=[{v:1,r:1,st:3},{v:.7,r:1.25,st:2},{v:.5,r:1.5,st:1}];
 if(!localStorage.tok)localStorage.tok=Math.random().toString(36).slice(2)+Date.now().toString(36);
 const tok=localStorage.tok;
-const socket=io();
+const sockRegs=[];let sockTr=null,realSock=null,LOCAL=false;
+const socket={
+  on(ev,cb){sockRegs.push([ev,cb]);if(sockTr)sockTr.on(ev,cb)},
+  emit(...a){if(sockTr)sockTr.emit(...a)},
+  use(t){sockTr=t;sockRegs.forEach(([ev,cb])=>t.on(ev,cb))}
+};
+if(typeof io==='function'){realSock=io();sockTr=realSock}
+// Transporte local: ejecuta el mismo motor del servidor dentro del navegador (modo solo, sin conexión)
+function localTransport(){
+  const cl={},clone=x=>x===undefined?x:JSON.parse(JSON.stringify(x));
+  const deliver=(ev,d)=>{d=clone(d);setTimeout(()=>(cl[ev]||[]).forEach(f=>f(d)),0)};
+  const ss={id:'local',h:{},on(ev,cb){this.h[ev]=cb},emit:deliver,join(){}};
+  let conn=null;
+  window.__makeEngine({on(ev,cb){if(ev==='connection')conn=cb},to(){return{emit:deliver}}});
+  conn(ss);
+  return{
+    on(ev,cb){(cl[ev]=cl[ev]||[]).push(cb)},
+    emit(ev,data,cb){
+      const f=ss.h[ev];if(!f)return;
+      setTimeout(()=>f(clone(data),typeof cb==='function'?(r=>setTimeout(()=>cb(r),0)):undefined),0);
+    }
+  };
+}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 let pendSay=null,wasPaused=false,rank=[];
 let S=null,myId=null,ctx=null,master=null,burst=null,step=0,voices=[],cv=null,vt=null,giveChoice='',myVote='',endAt=0;
@@ -258,13 +285,25 @@ $('snd').onclick=()=>{unlock();if(S&&S.phase==='auction')return;startNoise();set
 function show(which){$('home').classList.toggle('hide',which!=='home');$('room').classList.toggle('hide',which!=='room')}
 function after(r,name){
   if(r.err){$('err').textContent=r.err;localStorage.removeItem('room');show('home');return}
-  myId=r.id;localStorage.room=r.code;localStorage.nm=name;show('room');
+  myId=r.id;if(!LOCAL)localStorage.room=r.code;localStorage.nm=name;show('room');
 }
 function nameVal(){return $('nm').value.trim()}
 $('nm').value=localStorage.nm||'';
-$('create').onclick=()=>{unlock();const n=nameVal();socket.emit('create',{name:n,tok},r=>after(r,n))};
-$('join').onclick=()=>{unlock();const n=nameVal();const c=$('cd').value.trim().toUpperCase();if(!c){$('err').textContent='Escribe el código de la sala';return}socket.emit('join',{code:c,name:n,tok},r=>after(r,n))};
+const NOCON='Sin conexión con el servidor. Usa «Jugar solo (sin conexión)».';
+$('create').onclick=()=>{unlock();if(!sockTr){$('err').textContent=NOCON;return}const n=nameVal();socket.emit('create',{name:n,tok},r=>after(r,n))};
+$('join').onclick=()=>{unlock();const n=nameVal();const c=$('cd').value.trim().toUpperCase();if(!sockTr){$('err').textContent=NOCON;return}if(!c){$('err').textContent='Escribe el código de la sala';return}socket.emit('join',{code:c,name:n,tok},r=>after(r,n))};
 $('leave').onclick=()=>{localStorage.removeItem('room');location.reload()};
+$('solo').onclick=()=>{
+  unlock();
+  if(typeof window.__makeEngine!=='function'){$('err').textContent='El modo solo hay que descargarlo una vez: abre la página con internet y vuelve a intentarlo.';return}
+  if(realSock)realSock.disconnect();
+  LOCAL=true;socket.use(localTransport());
+  const n=nameVal()||'Tú';
+  $('lobbyHelp').textContent='Modo solo 🤖: juegas contra bots y no necesitas internet. Añade o quita bots y pulsa «Empezar partida».';
+  socket.emit('create',{name:n,tok},r=>{after(r,n);if(!r.err){socket.emit('addBot');socket.emit('addBot')}});
+};
+$('addBot').onclick=()=>socket.emit('addBot');
+$('plLobby').onclick=e=>{const b=e.target.closest('[data-kick]');if(b)socket.emit('kick',b.dataset.kick)};
 socket.on('connect',()=>{
   if(localStorage.room){const n=localStorage.nm||'';socket.emit('join',{code:localStorage.room,name:n,tok},r=>after(r,n))}
 });
@@ -358,7 +397,7 @@ function render(){
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
-    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span></div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
+    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span>'+(p.bot&&host?'<button class="sm alt" data-kick="'+esc(p.id)+'">Quitar</button>':'')+'</div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
