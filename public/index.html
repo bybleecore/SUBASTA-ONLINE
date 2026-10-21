@@ -650,7 +650,7 @@ function simEventHTML(V,host,spin){
   if(ev.type==='baja'){
     if(!ev.done){
       h+='<p><b>'+t+'</b> ('+ev.pts+' pts) se baja de la liga y otro freestyler lo reemplaza.</p>';
-      h+=itsMe?'<p><b>¿Cómo entra el reemplazo?</b></p><button class="vbtn" data-evc="inherit">📋 Entra con los puntos de '+t+' ('+ev.pts+' pts)</button><button class="vbtn alt" data-evc="redo">🔁 Empieza de cero y hace todas sus batallas otra vez ('+ev.j+' en una jornada de recuperación)</button>':wait;
+      h+=itsMe?'<p><b>¿Cómo entra el reemplazo?</b></p><button class="vbtn" data-evc="inherit">📋 Entra con los puntos de '+t+' ('+ev.pts+' pts)</button><button class="vbtn alt" data-evc="redo">🔁 Empieza de cero y hace todas sus batallas otra vez ('+ev.played+' en una jornada de recuperación)</button>':wait;
     }else h+='<p>🚪 <b>'+esc(R.old)+'</b> se baja. <b>'+esc(R.nw)+'</b> entra en su lugar con '+V.cacheStart+'$ de caché'+(R.mode==='inherit'?' y los '+R.pts+' puntos de '+esc(R.old)+'.':' y empieza de cero: jugará en una jornada de recuperación las '+R.redo+' batallas que ya se habían disputado.')+'</p>';
   }else if(ev.type==='viral'){
     h+='<p>📈 ¡La batalla <b>'+esc(R.a)+'</b> vs <b>'+esc(R.b)+'</b> de la jornada '+ev.j+' se hace viral! Cada uno gana <b>+'+R.gain+'$</b> de caché.</p>';
@@ -726,10 +726,17 @@ function renderSim(m,host){
       h+='<button class="alt" data-sim="anim">Saltar animación</button>';
       simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
     }else{
-      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar puedes cancelar hasta 2 contratos'+(V.leagues.length>1?' y hay un draft entre ligas':'')+'. Al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
+      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, '+(V.dbl?'jornada doble: 4 jornadas de 8, 4, 8 y 8 batallas':V.jn+' jornadas')+'. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar puedes cancelar hasta 2 contratos'+(V.leagues.length>1?' y hay un draft entre ligas':'')+'. Al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
       if(V.intl)h+='<p><small>🌍 Habrá FMS Internacional'+(V.total>4?' (tras la jornada '+V.cutJ+' votáis las 4 mejores ligas y solo esas van)':'')+'. Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
       h+=nextBtn('✂️ Cancelar contratos');
     }
+  }else if(V.step==='fmt'&&V.fmt){
+    const F=V.fmt,voted=F.voted.includes(myId);
+    h+='<h2>📅 ¿Jornada normal o doble?</h2><p><small>Votad el formato de la temporada: gana la mayoría y, si hay empate, se decide al azar.</small></p>';
+    h+='<div class="card"><b>Normal</b>: 7 jornadas de 4 batallas por liga. Cada freestyler pelea una vez por jornada. Cortes de la inter tras las jornadas 3 y 7.</div>';
+    h+='<div class="card"><b>Doble</b>: 4 jornadas de 8, 4, 8 y 8 batallas por liga. Cada freestyler pelea 2 veces por jornada, salvo en la jornada 2 (1 vez). Cortes de la inter tras las jornadas 2 y 4.</div>';
+    h+=voted?'<p><small>✅ Has votado. Esperando a los demás ('+F.voted.length+'/'+F.total+')…</small></p>':'<button data-fmt="nrm">Jornada normal</button><button data-fmt="dbl">Jornada doble</button>';
+    if(host)h+='<button class="alt sm" data-sim="skip">Votar al azar por quien falte</button>';
   }else if(V.step==='lpick'&&V.lp){
     const L=V.lp,cur=L.idx<L.order.length?L.order[L.idx]:null,mine=cur===myId;
     const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
@@ -856,7 +863,7 @@ function renderSim(m,host){
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
-  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr')h+=simPanel(V);
+  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr'&&V.step!=='fmt')h+=simPanel(V);
   box.innerHTML=h;
   if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
@@ -867,6 +874,7 @@ $('simBox').onclick=e=>{
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
+  else if(b.dataset.fmt)socket.emit('simFmt',b.dataset.fmt);
   else if(b.dataset.rrsel!==undefined){const n=b.dataset.rrsel;rrSel=rrSel.includes(n)?rrSel.filter(x=>x!==n):(rrSel.length<2?[...rrSel,n]:rrSel);renderSim(me(),S.hostId===myId)}
   else if(b.dataset.rrgo!==undefined){socket.emit('simRr',b.dataset.rrgo==='1'?rrSel:[]);rrSel=[]}
   else if(b.dataset.dans!==undefined)socket.emit('simDraftAns',b.dataset.dans==='1');
