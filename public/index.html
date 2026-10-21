@@ -410,7 +410,21 @@ $('board').onclick=egClick;
 });
 
 /* ---------- RENDER ---------- */
-socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;render()});
+let fsetSeen=0,fsetTm=0;
+function showFset(res){ // ruleta que decide si salen freestylers de TWB o élite
+  let d=document.getElementById('fsetBox');
+  if(!d){d=document.createElement('div');d.id='fsetBox';d.style.cssText='position:fixed;inset:0;z-index:50;background:#000b;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:400 clamp(2rem,10vw,4rem)/1.1 "Bowlby One",Impact,sans-serif;color:#FFD23F';document.body.appendChild(d)}
+  const opts=['TWB','ÉLITE'],t0=performance.now(),SPIN=2800;let i=0;
+  clearInterval(fsetTm);
+  fsetTm=setInterval(()=>{
+    const e=performance.now()-t0;
+    if(e<SPIN){d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¿Qué freestylers salen?</small><div>'+opts[i++%2]+'</div>';}
+    else{clearInterval(fsetTm);d.innerHTML='<small style="font-size:1.1rem;color:#F7F0E3">🎰 ¡Salen los freestylers de…!</small><div class="pop">'+(res==='elite'?'⭐ ÉLITE':'TWB')+'</div>';setTimeout(()=>{if(d.parentNode)d.remove()},1800)}
+  },110);
+}
+socket.on('state',s=>{S=s;endAt=performance.now()+s.ms;
+  if(S.fsetId&&S.fsetId!==fsetSeen&&S.fset&&(S.phase==='idle'||(S.phase==='sim'&&S.sim&&S.sim.step==='draw'))){fsetSeen=S.fsetId;showFset(S.fset)}
+  render()});
 const me=()=>S.players.find(p=>p.id===myId);
 const nameOf=id=>{const p=S.players.find(x=>x.id===id);return p?p.name:'?'};
 function setVal(el,v){if(document.activeElement!==el)el.value=v}
@@ -710,10 +724,21 @@ function renderSim(m,host){
       h+='<button class="alt" data-sim="anim">Saltar animación</button>';
       simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
     }else{
-      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar'+(V.leagues.length>1?' hay un draft entre ligas y':'')+', al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).</small></p>';
+      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar'+(V.leagues.length>1?' hay un draft entre ligas y':'')+', al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
       if(V.intl)h+='<p><small>🌍 Habrá FMS Internacional'+(V.total>4?' (tras la jornada '+V.cutJ+' votáis las 4 mejores ligas y solo esas van)':'')+'. Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
       h+=nextBtn(V.leagues.length>1?'🔀 Ir al draft entre ligas':'Empezar la temporada');
     }
+  }else if(V.step==='lpick'&&V.lp){
+    const L=V.lp,cur=L.idx<L.order.length?L.order[L.idx]:null,mine=cur===myId;
+    const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
+    h+='<h2>🏳 Elige tu liga</h2><p><small>Han salido los freestylers de TWB: cada jugador elige la liga que quiere para sí, por turnos al azar.</small></p>';
+    h+='<div class="banner'+(mine?' pop':'')+'">Turno de '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
+    h+=L.all.map(n=>{
+      const by=Object.keys(L.picks).find(k=>L.picks[k]===n);
+      if(by)return '<div class="pl"><span>'+esc(n)+'</span><small>✔ '+esc(nm(by))+(by===myId?' (tú)':'')+'</small></div>';
+      return mine?'<button class="vbtn" data-lpick="'+esc(n)+'">'+esc(n)+'</button>':'<div class="pl"><span>'+esc(n)+'</span><small>libre</small></div>';
+    }).join('');
+    if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que elija solo (al azar)</button>';
   }else if(V.step==='dft'&&V.dft){
     h+=simDraftHTML(V,host);
   }else if(V.step==='ev'&&V.ev){
@@ -815,7 +840,7 @@ function renderSim(m,host){
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
-  if(V.step!=='draw'&&V.step!=='dft')h+=simPanel(V);
+  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick')h+=simPanel(V);
   box.innerHTML=h;
   if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
@@ -826,6 +851,7 @@ $('simBox').onclick=e=>{
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
+  else if(b.dataset.lpick!==undefined)socket.emit('simLeaguePick',b.dataset.lpick);
   else if(b.dataset.evc)socket.emit('simEvent',b.dataset.evc==='pass'?{pass:true}:b.dataset.evc);
   else if(b.dataset.evown!==undefined){evPick.own=evPick.own===b.dataset.evown?null:b.dataset.evown;renderSim(me(),S.hostId===myId)}
   else if(b.dataset.evlg!==undefined){if(evPick.own)socket.emit('simEvent',{lg:+b.dataset.evlg,n:evPick.own})}
