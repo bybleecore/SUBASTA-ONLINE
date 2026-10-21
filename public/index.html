@@ -141,7 +141,7 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option><option value="b">Blue Lock</option></select>
       <label for="gm">Modo de partida</label>
-      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option><option value="best">Armar el mejor: llena cada categoría con tus personajes y 100$ (Freestylers, Frikirappers y Blue Lock)</option><option value="sim">Simulaciones: ligas FMS, 8 freestylers por jugador y jornadas con jurado; desde 4 jugadores hay FMS Internacional (con más de 4 se votan las 4 mejores ligas) (solo Freestylers, 1 a 7 jugadores)</option></select>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option><option value="best">Armar el mejor: llena cada categoría con tus personajes y 100$ (Freestylers, Frikirappers y Blue Lock)</option><option value="sim">Simulaciones: ligas FMS, 8 freestylers por jugador y jornadas con jurado; con 4 jugadores hay FMS Internacional con cortes (2019); desde 5, con fase de grupos (2021) y, con más de 5, se votan las 5 mejores ligas (solo Freestylers, 1 a 7 jugadores)</option></select>
       <div id="juryBox" class="hide"><label for="jury">Jurado de cada batalla (Simulaciones)</label>
       <select id="jury"><option value="3">3 jurados</option><option value="5">5 jurados (solo con 6 o más jugadores)</option></select></div>
       <label for="auc">Tipo de subasta</label>
@@ -556,6 +556,15 @@ function simTable(t,hl,o){
   });
   return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota'+(o&&(o.champ||o.q.length)?' · 🎟 dorado: clasificado a la Gran Final'+(o.champ?' · 🌈 arcoíris: campeón de liga':''):'')+'</small>';
 }
+function simGrpHTML(V,gi){ // tabla de un grupo: dorado = clasificados a la Gran Final
+  const G=V.grp.groups[gi],need=G.name==='Reservas'?V.grp.qr:V.grp.q;
+  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Liga</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  G.table.forEach((x,i)=>{
+    const q=i<need,cl=G.done&&q?'gold':(q?'hl':'');
+    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(G.done&&q?'🎟 ':'')+esc(x.n)+'</td><td>'+esc(lgShort(V,x.lgi))+' <small>'+x.r+'.º</small></td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
+  });
+  return h+'</table></div><small>Clasifican los '+need+' primeros'+(G.done?' (🎟 dorado)':' (zona resaltada)')+'. La liga y el puesto (.º) son los de su temporada.</small>';
+}
 function simTO(V,li){ // opciones de la tabla de la liga li: clasificados (dorado) y campeón si la liga ya acabó (arcoíris)
   const lg=V.leagues[li];
   return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null};
@@ -564,6 +573,7 @@ const KO_NAMES=['Octavos de final','Cuartos de final','Semifinales','Gran final'
 const lgShort=(V,i)=>(i==null||!V.leagues[i])?'':V.leagues[i].name.replace('FMS ','');
 function simStageTitle(V){
   if(V.stage==='pique')return '🌶 Pique entre ligas · exhibición';
+  if(V.stage==='grp'&&V.grp){const G=V.grp.groups[V.grp.g];return '🌍 FMS Internacional · '+(G.name==='Reservas'?'Reservas':'Grupo '+G.name)+' · jornada '+V.grp.gj+' de 5'}
   if(V.stage==='cut1')return '🌍 FMS Internacional · primer corte';
   if(V.stage==='cut2')return '🌍 FMS Internacional · segundo corte';
   if(V.stage==='ko')return '🏆 FMS Internacional · '+KO_NAMES[V.ko];
@@ -571,6 +581,7 @@ function simStageTitle(V){
 }
 function simStageInfo(V){
   if(V.stage==='pique')return 'Exhibición fuera de la tabla: solo mueve caché. El ganador se lleva +'+V.piqueCache+'$.';
+  if(V.stage==='grp')return 'Fase de grupos como en la FMS Internacional 2021: se juega cada grupo entero (todos contra todos, 5 jornadas de 2 batallas) antes de pasar al siguiente. Clasifican los 3 primeros de cada grupo y el 1.º de Reservas.';
   if(V.stage==='cut1')return 'Los 4 primeros de cada liga tras la jornada '+V.cutJ+': el 1.º se cruza con el 4.º de otra liga y el 2.º con el 3.º de otra liga. Los 8 ganadores clasifican a la Gran Final.';
   if(V.stage==='cut2')return 'Ligas terminadas. Los 4 mejores de cada tabla que aún no están clasificados se cruzan igual (1.º vs 4.º y 2.º vs 3.º de otra liga). Otros 8 billetes a la Gran Final.';
   if(V.stage==='ko')return 'Eliminatoria directa entre los 16 clasificados. El campeón de la FMS Internacional se lleva +'+V.intlChamp+'$ de caché.';
@@ -579,7 +590,7 @@ function simStageInfo(V){
 function simPanel(V){ // siempre visible durante la temporada: clasificados a la Gran Final (dorado) y campeones de liga (arcoíris)
   if(!V.intl)return '';
   const q=V.intl.q,cut=V.stage==='cut1'||V.stage==='cut2';
-  let h='<div class="box qpanel"><b>🎟 Clasificados a la Gran Final ('+q.length+'/16)</b><div style="margin-top:4px">'+(q.length?q.map(x=>'<span class="chip gold'+(cut?' glow':'')+'">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
+  let h='<div class="box qpanel"><b>🎟 Clasificados a la Gran Final ('+q.length+'/16)</b><div style="margin-top:4px">'+(q.length?q.map(x=>'<span class="chip gold'+(cut||x.via==='grp'?' glow':'')+'">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+(x.g?' · '+(x.g==='Reservas'?'Reservas':'Grupo '+esc(x.g)):'')+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
   const ch=V.leagues.filter(l=>l.fin).map(l=>'<span class="chip rainbow">🌈 '+esc(l.table[0].n)+' <small>'+esc(l.name.replace('FMS ',''))+'</small></span>');
   if(ch.length)h+='<div style="margin-top:8px"><b>🌈 Campeones de liga</b></div><div>'+ch.join('')+'</div>';
   return h+'</div>';
@@ -607,9 +618,11 @@ function simBattleList(cur,upto){
   }).join('');
 }
 function simAfterLabel(V){ // lo que viene al terminar la jornada (y su evento)
-  if(V.intl&&V.j===V.cutJ)return V.intl.lgs?'🌍 Primer corte de la FMS Internacional':'🗳 Votar las 4 mejores ligas';
+  const I=V.intl;
+  if(I&&!I.grp&&V.j===V.cutJ)return I.lgs?'🌍 Primer corte de la FMS Internacional':'🗳 Votar las '+I.nl+' mejores ligas';
   if(V.j<V.jn)return 'Jornada '+(V.j+1)+' · '+V.leagues[V.order[0]].name;
-  return V.intl?'🌍 Segundo corte de la FMS Internacional':'Ver el final de la temporada';
+  if(I&&I.grp)return I.lgs?'🎲 Sorteo de grupos de la FMS Internacional':'🗳 Votar las '+I.nl+' mejores ligas';
+  return I?'🌍 Segundo corte de la FMS Internacional':'Ver el final de la temporada';
 }
 function simNextLabel(V){
   if(V.mk||V.stage==='pique')return simAfterLabel(V);
@@ -618,6 +631,7 @@ function simNextLabel(V){
     if(V.j<V.jn)return 'Fin de la jornada '+V.j;
     return simAfterLabel(V);
   }
+  if(V.stage==='grp'){const g=V.grp,gs=g.groups,nm=i=>gs[i].name==='Reservas'?'Reservas':'Grupo '+gs[i].name;return g.gj<5?'Jornada '+(g.gj+1)+' · '+nm(g.g):g.g<5?'➡ Siguiente: '+nm(g.g+1):'🏆 Gran Final: '+KO_NAMES[0]}
   if(V.stage==='cut1')return 'Volver a las ligas: jornada '+(V.cutJ+1)+' · '+V.leagues[V.order[0]].name;
   if(V.stage==='cut2')return '🏆 Gran Final: '+KO_NAMES[0];
   return V.ko<3?KO_NAMES[V.ko+1]:'Ver el final de la temporada';
@@ -727,14 +741,18 @@ function renderSim(m,host){
       simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
     }else{
       h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, '+(V.dbl?'jornada doble: 4 jornadas de 8, 4, 8 y 8 batallas':V.jn+' jornadas')+'. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar puedes cancelar hasta 2 contratos'+(V.leagues.length>1?' y hay un draft entre ligas':'')+'. Al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
-      if(V.intl)h+='<p><small>🌍 Habrá FMS Internacional'+(V.total>4?' (tras la jornada '+V.cutJ+' votáis las 4 mejores ligas y solo esas van)':'')+'. Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
+      if(V.intl){
+        const I=V.intl;
+        h+=I.grp?'<p><small>🌍 Habrá FMS Internacional con el formato de 2021: al acabar las ligas, los 5 primeros de cada una se reparten en 5 grupos (A-E) y los 6.º forman el grupo Reservas. Se juega cada grupo entero antes del siguiente; clasifican los 3 primeros de cada grupo y el 1.º de Reservas (16) y disputan la Gran Final con llaves al azar.'+(V.total>5?' Como hay más de 5 ligas, votáis las 5 mejores y solo esas van.':'')+' El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>'
+          :'<p><small>🌍 Habrá FMS Internacional con cortes (formato de 2019). Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
+      }
       h+=nextBtn('✂️ Cancelar contratos');
     }
   }else if(V.step==='fmt'&&V.fmt){
     const F=V.fmt,voted=F.voted.includes(myId);
     h+='<h2>📅 ¿Jornada normal o doble?</h2><p><small>Votad el formato de la temporada: gana la mayoría y, si hay empate, se decide al azar.</small></p>';
-    h+='<div class="card"><b>Normal</b>: 7 jornadas de 4 batallas por liga. Cada freestyler pelea una vez por jornada. Cortes de la inter tras las jornadas 3 y 7.</div>';
-    h+='<div class="card"><b>Doble</b>: 4 jornadas de 8, 4, 8 y 8 batallas por liga. Cada freestyler pelea 2 veces por jornada, salvo en la jornada 2 (1 vez). Cortes de la inter tras las jornadas 2 y 4.</div>';
+    h+='<div class="card"><b>Normal</b>: 7 jornadas de 4 batallas por liga. Cada freestyler pelea una vez por jornada. '+(V.intl&&!V.intl.grp?'Cortes de la inter tras las jornadas 3 y 7.':'')+'</div>';
+    h+='<div class="card"><b>Doble</b>: 4 jornadas de 8, 4, 8 y 8 batallas por liga. Cada freestyler pelea 2 veces por jornada, salvo en la jornada 2 (1 vez). '+(V.intl&&!V.intl.grp?'Cortes de la inter tras las jornadas 2 y 4.':'')+'</div>';
     h+=voted?'<p><small>✅ Has votado. Esperando a los demás ('+F.voted.length+'/'+F.total+')…</small></p>':'<button data-fmt="nrm">Jornada normal</button><button data-fmt="dbl">Jornada doble</button>';
     if(host)h+='<button class="alt sm" data-sim="skip">Votar al azar por quien falte</button>';
   }else if(V.step==='lpick'&&V.lp){
@@ -773,10 +791,10 @@ function renderSim(m,host){
     else if(host)h+='<button class="alt sm" data-sim="skip">Decidir al azar por él</button>';
   }else if(V.step==='lvote'){
     const voted=V.lvoted.includes(myId),isVoter=V.lvoters.some(p=>p.id===myId);
-    h+='<h2>🗳 Las 4 mejores ligas</h2><p>Hay '+V.total+' ligas, pero a la FMS Internacional solo van 4. Vota cuáles son las 4 mejores (puedes votar la tuya).</p>';
+    const NL=V.intl.nl;h+='<h2>🗳 Las '+NL+' mejores ligas</h2><p>Hay '+V.total+' ligas, pero a la FMS Internacional solo van '+NL+'. Vota cuáles son las '+NL+' mejores (puedes votar la tuya).</p>';
     if(isVoter&&!voted){
       h+=V.leagues.map((lg,i)=>{const on=simPick.includes(i),c=lg.table[0];return '<button class="vbtn'+(on?'':' alt')+'" data-simpick="'+i+'">'+(on?'✔ ':'')+esc(lg.name)+(lg.owner===myId?' (tuya)':'')+' <small>· líder '+esc(c.n)+' · '+c.pts+' pts</small></button>'}).join('');
-      h+='<p><small>Elegidas: '+simPick.length+'/4</small></p><button data-sim="lsend"'+(simPick.length===4?'':' disabled')+'>Enviar voto</button>';
+      h+='<p><small>Elegidas: '+simPick.length+'/'+NL+'</small></p><button data-sim="lsend"'+(simPick.length===NL?'':' disabled')+'>Enviar voto</button>';
     }else if(voted){
       h+='<p>✔ Voto enviado. Esperando a los demás…</p>';
     }else h+='<p>Estás mirando: votan los jugadores.</p>';
@@ -784,7 +802,14 @@ function renderSim(m,host){
     if(host&&V.lvoted.length<V.lvoters.length)h+='<button class="alt sm" data-sim="skip">Dar por votados (al azar) a los que faltan</button>';
   }else if(V.step==='lres'){
     h+='<h2>🗳 Resultado de la votación</h2>'+V.intl.vres.map((x,i)=>'<div class="pl'+(x.in?' win':'')+'"><span>'+(i+1)+'. '+esc(V.leagues[x.l].name)+(V.leagues[x.l].owner===myId?' (tú)':'')+'</span><small>'+x.v+' votos · '+(x.in?'✔ va a la inter':'✖ fuera')+'</small></div>').join('');
-    h+='<p><small>Empates: gana la liga con más caché total y, si sigue el empate, el azar.</small></p>'+nextBtn('🌍 Primer corte de la FMS Internacional');
+    h+='<p><small>Empates: gana la liga con más caché total y, si sigue el empate, el azar.</small></p>'+nextBtn(V.intl.grp?'🎲 Sorteo de grupos de la FMS Internacional':'🌍 Primer corte de la FMS Internacional');
+  }else if(V.step==='gdraw'&&V.grp){
+    h+='<h2>🎲 Sorteo de grupos · FMS Internacional</h2><p><small>Los 5 primeros de cada liga se reparten en 5 grupos: cada grupo tiene un freestyler de cada liga, y un 1.º, 2.º, 3.º, 4.º y 5.º. Los 6.º forman el grupo Reservas. Cada grupo se juega entero (todos contra todos, 5 jornadas de 2 batallas) antes de pasar al siguiente. Clasifican los 3 primeros de cada grupo y el 1.º de Reservas: 16 para la Gran Final.</small></p>';
+    V.grp.groups.forEach((G,gi)=>{
+      const rows=G.table.slice().sort((a,b)=>a.r-b.r);
+      h+='<div class="card"><b>'+(G.name==='Reservas'?'🔄 Reservas':'Grupo '+G.name)+'</b><div style="margin-top:6px">'+rows.map((x,k)=>'<span class="chip pop" style="animation-delay:'+(gi*0.25+k*0.08).toFixed(2)+'s">'+esc(x.n)+' <small>'+esc(lgShort(V,x.lgi))+' · '+x.r+'.º</small></span>').join('')+'</div></div>';
+    });
+    h+=nextBtn('Empezar el Grupo A');
   }else if(V.step==='intro'){
     const cur=V.cur;
     if(isLg){
@@ -798,9 +823,10 @@ function renderSim(m,host){
       h+='<h2>'+simStageTitle(V)+'</h2><p>'+(V.stage==='pique'?esc(simStageInfo(V)):cur.battles.length+' batallas:')+'</p>';
       cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
       if(V.stage==='ko'&&V.ko===0)h+='<p><small>🎲 Llaves sorteadas al azar entre los 16 clasificados (se evita cruzar a dos de la misma liga cuando se puede).</small></p>';
-      if(V.stage!=='pique'&&V.total>4&&V.intl&&V.intl.lgs)h+='<p><small>Ligas en la inter: '+V.intl.lgs.map(l=>esc(lgShort(V,l))).join(' · ')+'</small></p>';
+      if(V.stage==='grp'&&V.grp)h+='<h2>'+(V.grp.groups[V.grp.g].name==='Reservas'?'Reservas':'Grupo '+V.grp.groups[V.grp.g].name)+'</h2>'+simGrpHTML(V,V.grp.g);
+      if(V.stage!=='pique'&&V.stage!=='grp'&&V.intl&&V.intl.lgs&&V.intl.lgs.length<V.total)h+='<p><small>Ligas en la inter: '+V.intl.lgs.map(l=>esc(lgShort(V,l))).join(' · ')+'</small></p>';
       h+='<p><small>🎙 Cada batalla tiene su propio jurado: no vota ningún jugador cuyos freestylers se enfrentan, y un voto va asegurado al favorito por caché.</small></p>';
-      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():V.stage==='pique'?'Empezar la exhibición':'Empezar el corte');
+      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():V.stage==='pique'?'Empezar la exhibición':V.stage==='grp'?'Empezar la jornada '+V.grp.gj:'Empezar el corte');
     }
   }else if(V.step==='vote'){
     const cur=V.cur,bt=cur.battles[cur.b],seat=cur.jurors.findIndex(j=>j.k==='p'&&j.id===myId);
@@ -843,7 +869,11 @@ function renderSim(m,host){
       h+='<h2>'+esc(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
       if(!V.mk&&V.j===V.jn&&lg.fin)h+='<div class="banner rainbow pop">🌈 Campeón de '+esc(lg.name)+': '+esc(lg.table[0].n)+'</div>';
     }else{
-      h+='<h2>'+simStageTitle(V)+' · resultados</h2>'+simBattleList(cur,-1);
+      if(V.stage==='grp'&&V.grp){
+        const G=V.grp.groups[V.grp.g];
+        h+='<h2>'+(G.name==='Reservas'?'Reservas':'Grupo '+G.name)+' · tabla tras la jornada '+V.grp.gj+'</h2>'+simGrpHTML(V,V.grp.g)+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+        if(G.done){const need=G.name==='Reservas'?V.grp.qr:V.grp.q;h+='<div class="banner gold glow pop">🎟 Clasifican a la Gran Final: '+G.table.slice(0,need).map(x=>esc(x.n)).join(', ')+'</div>'}
+      }else h+='<h2>'+simStageTitle(V)+' · resultados</h2>'+simBattleList(cur,-1);
       if(V.stage==='cut1'||V.stage==='cut2'){const nq=V.intl.q.filter(x=>x.via===V.stage).length;h+='<div class="banner gold glow pop">🎟 '+nq+' clasificados a la Gran Final en este corte</div>'}
     }
     h+=nextBtn(simNextLabel(V));
@@ -869,8 +899,8 @@ function renderSim(m,host){
 }
 $('simBox').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.simpick!==undefined){const i=+b.dataset.simpick,k=simPick.indexOf(i);if(k>=0)simPick.splice(k,1);else if(simPick.length<4)simPick.push(i);renderSim(me(),S.hostId===myId)}
-  else if(b.dataset.sim==='lsend'){if(simPick.length===4)socket.emit('simLeagueVote',simPick.slice())}
+  if(b.dataset.simpick!==undefined){const i=+b.dataset.simpick,k=simPick.indexOf(i);if(k>=0)simPick.splice(k,1);else if(simPick.length<(S.sim.intl?S.sim.intl.nl:4))simPick.push(i);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.sim==='lsend'){if(S.sim.intl&&simPick.length===S.sim.intl.nl)socket.emit('simLeagueVote',simPick.slice())}
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
