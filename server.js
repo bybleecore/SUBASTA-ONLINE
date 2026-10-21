@@ -36,7 +36,7 @@ const EVENT_P = 0.5;      // probabilidad de que haya un evento al terminar una 
 const CACHE_VIRAL = 500;  // caché que gana cada uno de los 2 competidores de la «batalla viral»
 const CACHE_PIQUE = 500, CACHE_PIQUE_REP = 300; // caché del ganador de la exhibición del «pique» (directo / tras réplica)
 const POLEMICA_LOSS = 0.3; // «polémica»: si no le pagas y lo mantienes, pierde este % de su caché
-const DRAFT_ROUNDS = 2;   // rondas del draft entre ligas (en serpiente): cada ronda cada jugador puede fichar a 1 freestyler de otra liga a cambio de uno suyo
+const DRAFT_ROUNDS = 1;   // rondas del draft: 1 propuesta de intercambio por jugador (hay que acordarlo con el dueño de la otra liga; si rechaza, pierdes el turno)
 const EVENTS = ['baja', 'viral', 'polemica', 'pique'];
 const KO_NAMES = ['Octavos de final', 'Cuartos de final', 'Semifinales', 'Gran final'];
 const MAXP = 10;         // máximo de jugadores por sala
@@ -808,6 +808,7 @@ function simPending(r) { // tras una desconexión / salida: repasar lo que estab
   if (S.step === 'ev') return simEventAuto(r);
   if (S.step === 'dft') return simDraftAuto(r);
   if (S.step === 'lpick') return simLpAuto(r);
+  if (S.step === 'rr') return simRrAuto(r);
   push(r);
 }
 function simIntlBegin(r, kind) { // kind: 'cut1' | 'cut2'
@@ -894,26 +895,72 @@ function simDraftSwap(r, pid, take, give) { // el jugador cede «give» (de su l
   D.log.push({ pid, take, give, from: b, to: a });
   return true;
 }
-function simDraftRandom(r, pid) { // turno automático (bots, desconectados o «dar por decidido»)
+function simDraftPropose(r, pid, take, give) { // el intercambio queda pendiente de que lo acepte el dueño de la otra liga
+  const S = r.sim, D = S.dft, a = simOwnLg(S, pid); if (a < 0) return false;
+  const b = S.leagues.findIndex((lg, l) => l !== a && lg.teams.includes(take));
+  if (b < 0 || !S.leagues[a].teams.includes(give) || D.locked.includes(take) || D.locked.includes(give)) return false;
+  if (noKodigo(S.leagues[a], take) || noKodigo(S.leagues[b], give)) return false;
+  D.prop = { pid, take, give, to: S.leagues[b].ownerId, b };
+  return true;
+}
+function simDraftResolve(r, ok) { // responde el dueño (o el azar): si rechaza, el que propuso pierde su turno
+  const D = r.sim.dft, pr = D.prop; if (!pr) return;
+  D.prop = null;
+  if (!(ok && simDraftSwap(r, pr.pid, pr.take, pr.give))) D.log.push({ pid: pr.pid, take: pr.take, give: pr.give, from: pr.b, rejected: true, by: pr.to });
+  D.idx++;
+}
+function simDraftRandom(r, pid) { // turno automático (bots, desconectados o «dar por decidido»): propone un intercambio al azar o pasa
   const S = r.sim, D = S.dft, me = simOwnLg(S, pid);
-  let done = false;
   if (me >= 0 && Math.random() < 0.7) {
     const mine = S.leagues[me].teams.filter(t => !D.locked.includes(t)), others = [];
     S.leagues.forEach((lg, l) => { if (l !== me) lg.teams.forEach(t => { if (!D.locked.includes(t)) others.push(t); }); });
-    if (mine.length && others.length) done = simDraftSwap(r, pid, simShuffle(others)[0], simShuffle(mine)[0]);
+    if (mine.length && others.length && simDraftPropose(r, pid, simShuffle(others)[0], simShuffle(mine)[0])) return; // queda pendiente de respuesta
   }
-  if (!done) D.log.push({ pid, pass: true });
+  D.log.push({ pid, pass: true });
   D.idx++;
 }
-function simDraftAuto(r) { // los turnos de bots y desconectados se juegan solos
+function simDraftAuto(r) { // bots y desconectados juegan solos (también aceptan o rechazan al azar)
   const S = r.sim; if (!S || S.step !== 'dft') return;
   const D = S.dft;
   while (D.idx < D.order.length) {
+    if (D.prop) {
+      const o = find(r, D.prop.to);
+      if (o && !o.bot && o.on) break; // espera a que responda una persona
+      simDraftResolve(r, Math.random() < 0.5);
+      continue;
+    }
     const p = find(r, D.order[D.idx]);
     if (p && !p.bot && p.on) break;
     simDraftRandom(r, D.order[D.idx]);
   }
-  if (D.idx >= D.order.length) D.done = true;
+  if (D.idx >= D.order.length && !D.prop) D.done = true;
+  push(r);
+}
+
+// ---- Antes del draft: cancelar hasta 2 contratos ----
+const RR_MAX = 2;
+function simRrBegin(r) {
+  const S = r.sim;
+  S.rr = { sel: {}, done: {}, log: [], applied: false };
+  S.step = 'rr';
+  simRrAuto(r);
+}
+function simRrAuto(r) { // bots y desconectados se quedan con los suyos; cuando todos han decidido se aplica
+  const S = r.sim; if (!S || S.step !== 'rr') return;
+  const R = S.rr;
+  r.players.forEach(p => { if (!R.done[p.id] && (p.bot || !p.on)) R.done[p.id] = true; });
+  if (!R.applied && r.players.every(p => R.done[p.id])) {
+    R.applied = true;
+    S.leagues.forEach((lg, li) => {
+      const out = [];
+      (R.sel[lg.ownerId] || []).forEach(old => {
+        if (!lg.teams.includes(old)) return;
+        const x = simReplace(r, li, old, 'inherit'); // los nuevos entran de cero (aún no se ha jugado nada)
+        if (x) { out.push({ old, nw: x.nw }); S.spare.push(old); }
+      });
+      if (out.length) R.log.push({ pid: lg.ownerId, out });
+    });
+  }
   push(r);
 }
 
@@ -1034,7 +1081,8 @@ function simAdvance(r) { // desde la pantalla de cierre (jEnd) a lo siguiente
 }
 function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
   const S = r.sim; if (!S) return;
-  if (S.step === 'draw') return S.leagues.length > 1 ? simDraftBegin(r) : simBegin(r);
+  if (S.step === 'draw') return simRrBegin(r);
+  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (S.leagues.length > 1) simDraftBegin(r); else simBegin(r); } return; }
   if (S.step === 'dft') { if (S.dft && S.dft.done) simBegin(r); return; }
   if (S.step === 'ev') return simEventNext(r);
   if (S.step === 'intro') { S.b = 0; return simStartBattle(r); }
@@ -1061,8 +1109,9 @@ function simView(r) {
   const v = {
     id: S.id, step: S.step, j: S.j, jn: SIM_TEAM - 1, jury: S.jury, li: S.li, total: S.order.length, order: S.order,
     stage: S.stage, ko: S.ko, cutJ: SIM_CUT_J, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, piqueCache: CACHE_PIQUE,
+    rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX } : null,
     lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
-    dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS } : null,
+    dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS, prop: S.dft.prop } : null,
     ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, j: S.j, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
     intl: S.intl ? { q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via })), champ: S.intl.champ, lgs: S.intl.lgs, vres: S.step === 'lres' ? S.intl.vres : null } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
@@ -1376,7 +1425,8 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
     if (r.sim.step === 'lpick') { const L = r.sim.lp; if (L && L.idx < L.order.length) simLpPick(r, L.order[L.idx], null); return simLpAuto(r); }
     if (r.sim.step === 'ev') { const ev = r.sim.ev; if (ev && !ev.done) simEventResolve(r, simEventRandomChoice(r.sim, ev)); return; }
-    if (r.sim.step === 'dft') { const D = r.sim.dft; if (D && D.idx < D.order.length) simDraftRandom(r, D.order[D.idx]); return simDraftAuto(r); }
+    if (r.sim.step === 'rr') { const R = r.sim.rr; if (R) r.players.forEach(p => { R.done[p.id] = true; }); return simRrAuto(r); }
+    if (r.sim.step === 'dft') { const D = r.sim.dft; if (D && D.prop) simDraftResolve(r, Math.random() < 0.5); else if (D && D.idx < D.order.length) simDraftRandom(r, D.order[D.idx]); return simDraftAuto(r); }
     if (r.sim.step === 'lvote') { // quien no ha votado vota solo como un bot
       const S = r.sim; r.players.forEach(p => { if (!(p.id in S.lvotes)) { const t = S.leagues.map((_, l) => l); S.lvotes[p.id] = simShuffle(t).slice(0, 4); } });
       return simLeagueCheck(r);
@@ -1397,13 +1447,26 @@ io.on('connection', s => {
     const ev = r.sim.ev; if (!ev || ev.done || ev.pid !== p.id) return;
     simEventResolve(r, c);
   });
-  s.on('simDraft', ({ take, give, pass } = {}) => { // turno del draft entre ligas
+  s.on('simDraft', ({ take, give, pass } = {}) => { // turno del draft: propone un intercambio (o pasa)
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'dft') return;
-    const D = r.sim.dft; if (!D || D.idx >= D.order.length || D.order[D.idx] !== p.id) return;
-    if (pass) D.log.push({ pid: p.id, pass: true });
-    else if (!simDraftSwap(r, p.id, String(take), String(give))) return;
-    D.idx++;
+    const D = r.sim.dft; if (!D || D.prop || D.idx >= D.order.length || D.order[D.idx] !== p.id) return;
+    if (pass) { D.log.push({ pid: p.id, pass: true }); D.idx++; }
+    else if (!simDraftPropose(r, p.id, String(take), String(give))) return;
     simDraftAuto(r);
+  });
+  s.on('simDraftAns', ok => { // el dueño de la otra liga acepta o rechaza
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'dft') return;
+    const D = r.sim.dft; if (!D || !D.prop || D.prop.to !== p.id) return;
+    simDraftResolve(r, !!ok);
+    simDraftAuto(r);
+  });
+  s.on('simRr', cancel => { // cancelar contratos antes del draft
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'rr') return;
+    const R = r.sim.rr; if (!R || R.done[p.id]) return;
+    const lg = r.sim.leagues.find(l => l.ownerId === p.id); if (!lg) return;
+    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => lg.teams.includes(n)).slice(0, RR_MAX);
+    R.sel[p.id] = list; R.done[p.id] = true;
+    simRrAuto(r);
   });
   s.on('simNext', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
@@ -1440,7 +1503,7 @@ io.on('connection', s => {
     } else {
       if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
       if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
-      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft', 'lpick'].includes(r.sim.step)) return simPending(r);
+      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft', 'lpick', 'rr'].includes(r.sim.step)) return simPending(r);
       push(r);
     }
   });
