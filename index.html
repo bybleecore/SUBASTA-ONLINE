@@ -67,6 +67,23 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .pitch.mini .slot i{width:34px;height:34px;font-size:.62rem}
 .pitch.mini .slot span{font-size:.6rem;max-width:58px}
 .pfm{margin-top:6px}
+.vs{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:center}
+.vs>span{flex:1;font:400 1.05rem 'Bowlby One',Impact,sans-serif;background:#2A1B5E;border-radius:8px;padding:10px 6px;overflow-wrap:anywhere}
+.vs>span small{display:block;font:600 .75rem 'Work Sans',system-ui,sans-serif;color:var(--y)}
+.vs>span.w{background:var(--y);color:#2A1B5E}.vs>span.w small{color:#2A1B5E}
+.vs>b{color:var(--r);font-family:'Bowlby One',Impact,sans-serif}
+.tblw{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:.85rem}
+.tbl th,.tbl td{padding:4px 6px;text-align:right;border-bottom:1px solid #5a47a0;white-space:nowrap}
+.tbl td:nth-child(2),.tbl th:nth-child(2){text-align:left;white-space:normal}
+.tbl tr.hl td{background:#5a47a066}
+.pop{animation:pop .45s both}
+@keyframes pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+button.vbtn{display:block;width:100%;margin:8px 0}
+.banner{padding:12px;border-radius:10px;background:var(--y);color:#2A1B5E;font:400 1.1rem 'Bowlby One',Impact,sans-serif;margin:10px 0;text-align:center}
+.banner.rep{background:var(--r);color:#fff}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -109,7 +126,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
       <label for="modo">Modo de juego</label>
       <select id="modo"><option value="f">Freestylers</option><option value="k">Frikirappers</option><option value="b">Blue Lock</option></select>
       <label for="gm">Modo de partida</label>
-      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option><option value="best">Armar el mejor: llena cada categoría con tus personajes y 100$ (Freestylers, Frikirappers y Blue Lock)</option></select>
+      <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option><option value="best">Armar el mejor: llena cada categoría con tus personajes y 100$ (Freestylers, Frikirappers y Blue Lock)</option><option value="sim">Simulaciones: ligas FMS, 8 freestylers por jugador y jornadas con jurado (solo Freestylers, 1 a 7 jugadores)</option></select>
+      <div id="juryBox" class="hide"><label for="jury">Jurado de cada batalla (Simulaciones)</label>
+      <select id="jury"><option value="3">3 jurados</option><option value="5">5 jurados (solo con 6 o más jugadores)</option></select></div>
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
@@ -167,6 +186,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 
   <!-- INTERCAMBIO / VOTACIÓN / FINAL -->
   <section id="endgame" class="hide"><div id="eg"></div></section>
+  <section id="simBox" class="hide"></section>
   <div id="mkt" class="box hide"></div>
   <div id="castBox" class="box hide"></div>
 
@@ -303,6 +323,7 @@ $('solo').onclick=()=>{
   socket.emit('create',{name:n,tok},r=>{after(r,n);if(!r.err){socket.emit('addBot');socket.emit('addBot')}});
 };
 $('addBot').onclick=()=>socket.emit('addBot');
+$('jury').onchange=()=>socket.emit('settings',{jury:+$('jury').value});
 $('plLobby').onclick=e=>{const b=e.target.closest('[data-kick]');if(b)socket.emit('kick',b.dataset.kick)};
 socket.on('connect',()=>{
   if(localStorage.room){const n=localStorage.nm||'';socket.emit('join',{code:localStorage.room,name:n,tok},r=>after(r,n))}
@@ -383,7 +404,7 @@ function render(){
   if(!S||!myId)return;
   const m=me(),host=S.hostId===myId,ph=S.phase;
   $('codeLbl').textContent='Sala '+S.code;
-  $('me').textContent=m?m.name+' · '+m.money+'$':'';
+  $('me').textContent=m?(S.gm==='sim'?m.name:m.name+' · '+m.money+'$'):'';
   $('lobby').classList.toggle('hide',ph!=='lobby');
   $('game').classList.toggle('hide',!['idle','auction','roulette','sold'].includes(ph));
   $('endgame').classList.toggle('hide',!['trade','vote','end'].includes(ph));
@@ -394,15 +415,20 @@ function render(){
   if(ph==='lobby')rank=[];
   renderCast();
   renderMkt();
+  $('simBox').classList.toggle('hide',ph!=='sim');
+  if(ph==='sim'){$('hostBox').classList.add('hide');renderSim(m,host);return}
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
-    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span>'+(p.bot&&host?'<button class="sm alt" data-kick="'+esc(p.id)+'">Quitar</button>':'')+'</div>').join('')+'<small>'+S.players.length+' / 8 jugadores</small>';
+    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span>'+(p.bot&&host?'<button class="sm alt" data-kick="'+esc(p.id)+'">Quitar</button>':'')+'</div>').join('')+'<small>'+S.players.length+(S.gm==='sim'?' / 7 jugadores (una liga para cada uno)':' / 8 jugadores')+'</small>';
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
-    $('start').disabled=S.players.length<2;
+    $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
+    $('juryBox').classList.toggle('hide',S.gm!=='sim');setVal($('jury'),S.jury);
+    $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;
+    $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
   }
 
@@ -487,6 +513,125 @@ function render(){
   }
   renderEnd(m,host,ph);
 }
+
+
+/* ---------- SIMULACIONES (ligas FMS) ---------- */
+let simAnim={id:null,t0:0,skip:false},simTimer=null;
+const SIM_LG_MS=1300,SIM_NAME_MS=420;
+function simTable(t,hl){
+  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  t.forEach((x,i)=>{h+='<tr'+(hl&&hl.includes(x.n)?' class="hl"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>'});
+  return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota</small>';
+}
+function simVs(bt,res){
+  const wa=res&&res.w==='a',wb=res&&res.w==='b';
+  return '<div class="vs"><span class="'+(wa?'w':'')+'">'+esc(bt.a)+'<small>'+bt.ca+'$ de caché</small></span><b>VS</b><span class="'+(wb?'w':'')+'">'+esc(bt.b)+'<small>'+bt.cb+'$ de caché</small></span></div>';
+}
+function simJurors(cur,voted){
+  return cur.jurors.map((j,i)=>{
+    const ic=j.k==='c'?'💰':'🎙',mine=j.k==='p'&&j.id===myId;
+    const lbl=j.k==='c'?'Voto asegurado: el de mayor caché':esc(j.name)+(mine?' (tú)':'')+(j.k==='v'?' · invitado':'');
+    return '<span class="chip">'+ic+' '+lbl+(voted?(voted.includes(i)||j.k==='c'?' ✔':' ⏳'):'')+'</span>';
+  }).join('');
+}
+function simBattleList(cur,upto){
+  return cur.battles.map((bt,i)=>{
+    const r=bt.res;
+    const tag=r?(' → <b>'+esc(r.w==='a'?bt.a:bt.b)+'</b> '+(r.rep?'(tras réplica)':'')):(i===upto?' ← ahora':'');
+    return '<div class="pl"><span>'+(i+1)+'. '+esc(bt.a)+' vs '+esc(bt.b)+'</span><small>'+tag+'</small></div>';
+  }).join('');
+}
+function renderSim(m,host){
+  const box=$('simBox'),V=S.sim;
+  if(!V){box.innerHTML='';return}
+  if(simAnim.id!==V.id)simAnim={id:V.id,t0:performance.now(),skip:false};
+  clearTimeout(simTimer);
+  const mine=V.leagues.findIndex(l=>l.owner===myId);
+  const nextBtn=(txt)=>host?'<button data-sim="next">'+txt+'</button>':'<small>Esperando al anfitrión…</small>';
+  let h='';
+  if(V.step!=='draw'&&V.step!=='end'&&V.cur){
+    h+='<div class="box"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+esc(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
+  }
+  if(V.step==='draw'){
+    const N=V.leagues.length,per=V.leagues[0].teams.length*SIM_NAME_MS+500,T1=N*SIM_LG_MS+600,total=T1+N*per;
+    const e=simAnim.skip?1e9:performance.now()-simAnim.t0;
+    h+='<h2>🎲 Sorteo de ligas</h2>';
+    V.leagues.forEach((lg,i)=>{
+      const tl=i*SIM_LG_MS+700,showLg=e>=tl,t0=T1+i*per;
+      const n=e>=t0?Math.min(lg.teams.length,Math.floor((e-t0)/SIM_NAME_MS)+1):0;
+      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'</b> · '+(showLg?'<span class="'+(e-tl<400?'pop':'')+'">'+esc(lg.name)+'</span>':'<span class="spin">🎲</span> <small>sorteando…</small>')+
+        '<div style="margin-top:6px">'+(e>=t0?lg.teams.slice(0,n).map((t,k)=>'<span class="chip'+(k===n-1&&e-(t0+k*SIM_NAME_MS)<350&&e<total?' pop':'')+'">'+esc(t)+'</span>').join(''):'<small>'+(showLg?'esperando turno…':'')+'</small>')+'</div></div>';
+    });
+    if(e<total){
+      h+='<button class="alt" data-sim="anim">Saltar animación</button>';
+      simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
+    }else{
+      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores.</small></p>'+nextBtn('Empezar la temporada');
+    }
+  }else if(V.step==='intro'){
+    const cur=V.cur,lg=V.leagues[cur.lg];
+    h+='<h2>'+esc(lg.name)+' · jornada '+V.j+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(cur.lg===mine?' (tú)':'')+'. Estas son las '+cur.battles.length+' batallas de hoy:</p>';
+    cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
+    h+='<h2>Jurado de la jornada</h2><div>'+simJurors(cur)+'</div>';
+    if(V.j>=2)h+='<p><small>💰 Desde la jornada 2 uno de los votos va asegurado al freestyler con más caché de cada batalla.</small></p>';
+    h+=nextBtn('Empezar la jornada');
+  }else if(V.step==='vote'){
+    const cur=V.cur,bt=cur.battles[cur.b],seat=cur.jurors.findIndex(j=>j.k==='p'&&j.id===myId);
+    h+='<h2>Batalla '+(cur.b+1)+' de '+cur.battles.length+(cur.round===2?' · 🔁 RÉPLICA':'')+'</h2><div class="card">'+simVs(bt)+'</div>';
+    if(cur.round===2)h+='<p><small>Ronda extra: ya no vale votar réplica, hay que elegir a uno.</small></p>';
+    if(seat>=0&&!cur.voted.includes(seat)){
+      h+='<p><b>Eres jurado. ¿Quién ha ganado?</b></p><button class="vbtn" data-simvote="a">'+esc(bt.a)+'</button>'+(cur.round===1?'<button class="vbtn alt" data-simvote="r">🔁 Réplica</button>':'')+'<button class="vbtn" data-simvote="b">'+esc(bt.b)+'</button>';
+    }else if(seat>=0){
+      h+='<p>✔ Voto enviado. Esperando a los demás jurados…</p>';
+    }else if(cur.lg===mine){
+      h+='<p>Son freestylers tuyos: lo decide el jurado 🤞</p>';
+    }else{
+      h+='<p>Estás mirando: votan los jurados.</p>';
+    }
+    h+='<div>'+simJurors(cur,cur.voted)+'</div>';
+    if(host&&cur.voted.length<cur.jurors.length)h+='<button class="alt sm" data-sim="skip">Dar por votados (al azar) a los que faltan</button>';
+    h+='<h2>Jornada</h2>'+simBattleList(cur,cur.b);
+  }else if(V.step==='reveal'){
+    const cur=V.cur,bt=cur.battles[cur.b],last=cur.last,res=bt.res;
+    h+='<h2>Batalla '+(cur.b+1)+' de '+cur.battles.length+(last.round===2?' · 🔁 RÉPLICA':'')+'</h2><div class="card">'+simVs(bt,cur.needRep?null:res)+'</div>';
+    h+='<div>'+cur.jurors.map((j,i)=>{
+      const v=last.votes[i],lab=v==='a'?bt.a:v==='b'?bt.b:'🔁 Réplica';
+      return '<span class="chip pop" style="animation-delay:'+(i*0.45)+'s">'+(j.k==='c'?'💰 Favorito por caché':esc(j.name))+': <b>'+esc(lab)+'</b></span>';
+    }).join('')+'</div>';
+    const dl=cur.jurors.length*0.45+0.2;
+    if(cur.needRep){
+      h+='<div class="banner rep pop" style="animation-delay:'+dl+'s">🔁 ¡RÉPLICA! Nadie logró la mayoría ('+(Math.floor(cur.jurors.length/2)+1)+' votos)</div>'+nextBtn('Ronda de réplica');
+    }else{
+      const W=res.w==='a'?bt.a:bt.b,Lz=res.w==='a'?bt.b:bt.a;
+      h+='<div class="banner pop" style="animation-delay:'+dl+'s">🏆 '+esc(W)+' gana'+(res.rep?' tras réplica':'')+'</div>'+
+        '<p>'+esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b></p>';
+      h+=nextBtn(cur.b<cur.battles.length-1?'Siguiente batalla':'Cerrar la jornada');
+    }
+  }else if(V.step==='jEnd'){
+    const cur=V.cur,lg=V.leagues[cur.lg];
+    h+='<h2>'+esc(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table)+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+    const last=V.li>=V.total-1&&V.j>=V.jn;
+    const nxt=V.li<V.total-1?'Siguiente liga: '+V.leagues[V.order[V.li+1]].name:V.j<V.jn?'Jornada '+(V.j+1)+' · '+V.leagues[V.order[0]].name:'Ver el final de la temporada';
+    h+=nextBtn(nxt);
+  }else if(V.step==='end'){
+    h+='<h2>🏁 Fin de la temporada</h2>';
+    V.leagues.forEach(lg=>{
+      const c=lg.table[0];
+      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n])+'</div>';
+    });
+    h+='<p><small>🛠 La regla para decidir al ganador de la simulación todavía está por definir: por ahora se muestran las tablas finales y el campeón de cada liga.</small></p>';
+    h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
+  }
+  box.innerHTML=h;
+}
+$('simBox').onclick=e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
+  else if(b.dataset.sim==='next')socket.emit('simNext');
+  else if(b.dataset.sim==='skip')socket.emit('simSkip');
+  else if(b.dataset.sim==='anim'){simAnim.skip=true;renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.sim==='again')socket.emit('restart');
+};
 
 const XI_LBL={'433':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MC',M2:'MC',M3:'MC',F1:'EI',F2:'DC',F3:'ED'},
   '442':{POR:'POR',D1:'LI',D2:'DFC',D3:'DFC',D4:'LD',M1:'MI',M2:'MC',M3:'MC',M4:'MD',F1:'DC',F2:'DC'}};
