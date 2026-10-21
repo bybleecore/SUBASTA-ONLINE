@@ -159,7 +159,173 @@ const BLUE_NAMES = [
   'Lookhart',
   'Bunny Iglesias'
 ];
-const POOL = { f: dedupe(NAMES.f), k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
+// Freestylers «élite» (alternativa a los de TWB: al empezar una partida de Freestylers una ruleta decide cuál de las dos bolsas se usa)
+const ELITE_NAMES = [
+  'GAZIR (ES)',
+  'CHUTY (ES)',
+  'DOZER (AR)',
+  'MECHA (AR)',
+  'SOPHIA (AR)',
+  'MOTOSIERRA (PE)',
+  'SARA SOCAS (ES)',
+  'SKONE (ES)',
+  'JONY BELTRAN (MEX)',
+  'BARON (ES)',
+  'NEKROOS (PE)',
+  'ACZINO (MX)',
+  'CTZ (ARG)',
+  'BNET (ES)',
+  'SATIM (CL)',
+  'JOQERR (CL)',
+  'HRD (ARG)',
+  'KLAN (ARG)',
+  'STUART (ARG)',
+  'KUSA (ARG)',
+  'BLON (ES)',
+  'DTOKE (AR)',
+  'SHECKA (AR)',
+  'SWEETPAIN (ES)',
+  'NAVAS (ES)',
+  'EL MENOR (CL)',
+  'DANI (AR)',
+  'METALINGUISTICA (CL)',
+  'COLOSO (CO)',
+  'FORCE (ES)',
+  'VALLES T (CO)',
+  'ABEL (AR)',
+  'CACHA (AR)',
+  'PAPO (AR)',
+  'REPLIK (AR)',
+  'PIEZAS (ES)',
+  'BELICO (ES)',
+  'LIT KILLAH (AR)',
+  'TRUENO (AR)',
+  'G SONY (AR)',
+  'LOKILLO (CO)',
+  'ACRU (AR)',
+  'LOBO LOPEZ (MX)',
+  'RC (MX)',
+  'FAT N (CO)',
+  'EXODO LIRICAL (DO)',
+  'TEOREMA (CL)',
+  'GHETTO (GU)',
+  'JAZE (PE)',
+  'STRIKE (PE)',
+  'NECIA (PE)',
+  'SUMERIA (PE)',
+  'NITRO (CL)',
+  'FUSOK (CL)',
+  'NOCRE (ES)',
+  'KMBRA (ES)',
+  'KAISER (CL)',
+  'ZTICMA (MX)',
+  'EXE (AR)',
+  'RIFE (AR)',
+  'J1 (CO)',
+  'KIAN (PE)',
+  'MARITHEA (CO)',
+  'AZUKY (MX)',
+  'SUB (AR)',
+  'LIT IGNIS (CO) (VE)',
+  'HORUS (CO)',
+  'JOTA (PE)',
+  'ALMENDRADES (PE)',
+  'FAT TONY (MX)',
+  'GOTTI (AR)',
+  'PANDORA (CO)',
+  'LARRIX (AR)',
+  'DALIA C (MX) (ES)',
+  'KG (PE)',
+  'DIMA (CO)',
+  'WOS (AR)',
+  'KODIGO (AR)',
+  '1TOBY (AR)',
+  'DYSE (AR)',
+  'NOTA ROJA (MX)',
+  'LOBO ESTEPARIO (MX)',
+  'DYBBUK (AR)',
+  'FACU HDR (AR)',
+  'MR EGO (ES)',
+  'BABI (ES)',
+  'INVERT (ES)',
+  'WOLF (AR)',
+  'ARMAMENTE (BO)',
+  'CHANG (VE)',
+  'LETRA (VE)',
+  'LANCER LIRICAL (VE)',
+  'NAICEN (UY)',
+  'SPEKTRO (UY)',
+  'HAMMER (UY)',
+  'URKO (CO)',
+  'VISIONARIO (CO)',
+  'PUPPY (CO)',
+  'AIRON (CO)',
+  'VIJAY (PE)',
+  'YENKY ONE (DO)',
+  'REVERSE (CU)',
+  'FILOSOFO (CO)',
+  'ELEMECE (CL)',
+  'ZAKI (SV)',
+  '99 (CL)',
+  'BASEK (CL)',
+  'DROSE (CL)',
+  'EL BARTO (CL)',
+  'NASHO (CL)',
+  'RODAMIENTO (CL)',
+  'STIGMA (CL)',
+  'INDICO (PA)',
+  'ALDAHIR (PA)',
+  'NASIR CATRIEL (AR)',
+  'NAISTA (AR)',
+  'COBE (AR)',
+  'RITTER (AR)',
+  'RAPDER (MX)',
+  'XHAVEZ (MX)',
+  'ARTIL (MX)',
+  'IBAN (ES)',
+  'ARKANO (ES)',
+  'RAMSTER (PE)',
+  'CAFU (PE)',
+  'PIERO PISTAS (PE)',
+  'VENTI (PE)',
+  'JC SNAKE (PE)',
+  'LETRAS TARAPOTO (PE)',
+  'ICON (PE)',
+  'MSL (PE)',
+  'KATACRIST (PE)',
+  'BLAXO (PE)',
+  'XPLAIN (PE)',
+  'ZASKO (ES)',
+  'CHYSTE MC (CL)',
+  'JALONER (ES)',
+  'DANI VK (ES)',
+  'DESTELLO (CL)',
+  'BTI (CL)',
+  'ADESONG (CL)',
+  'ANUBIS (CL)',
+  'STICK (PE)',
+  'FABIUKI (ES)',
+  'JESSE PUNGAZ (AR)',
+  'MCKLOPEDIA (VE)',
+  'NACHO (AR)',
+  'ERRECE (ES)',
+  'KHAN (ES)',
+  'TIRPA (ES)',
+  'MKS (AR)',
+  'JACK ADRENALINA (MX)',
+  'ZAINA (AR)',
+  'DUKI (AR)',
+  'POTENCIA (MX)',
+  'YOIKER (MX)',
+  'WALLS (ES)',
+  'MNAK (ES)',
+  'TATA (AR)',
+  'DOMINIC (MX)',
+  'BTA (ES)',
+  'SKIPER (MX)',
+  'GHOST (PE)'
+];
+const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f), k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
 // Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
 const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
@@ -167,13 +333,22 @@ const TEMA_INSTR = dedupe(INSTR_NAMES);
 const TEMA_VIDEO = dedupe([...POOL.k, ...VIDEO_EXTRA]); // cualquier artista + los agregados
 const moneyOf = r => r.gm === 'tema' ? MONEY_TEMA : r.gm === 'xi' ? MONEY_XI : r.gm === 'best' ? MONEY_BEST : MONEY;
 // Bolsa de nombres de la subasta actual (en «amar tema» depende del puesto)
+const fPool = r => r.fset === 'elite' ? POOL.e : POOL.f; // bolsa de Freestylers de esta partida (TWB o élite)
+const poolOf = r => r.mode === 'f' ? fPool(r) : POOL[r.mode];
+// Kodigo puede estar en cualquier liga menos en la argentina
+const noKodigo = (lg, n) => lg.name === 'FMS Argentina' && key(n) === 'kodigo';
+// Élite: cada liga solo recibe freestylers de su país (según el país entre paréntesis del nombre); Caribe: cualquiera
+const LEAGUE_CC = { 'FMS España': 'ES', 'FMS Argentina': 'AR', 'FMS México': 'MX', 'FMS Chile': 'CL', 'FMS Perú': 'PE', 'FMS Colombia': 'CO', 'FMS Caribe': null };
+const CC_ALIAS = { ARG: 'AR', MEX: 'MX' };
+const tagsOf = n => (String(n).match(/\(([A-Z]+)\)/g) || []).map(x => x.slice(1, -1)).map(c => CC_ALIAS[c] || c);
+const eligLg = (r, lgName, n) => { if (r.fset !== 'elite') return true; const cc = LEAGUE_CC[lgName]; return !cc || tagsOf(n).includes(cc); };
 const poolFor = r => {
   if (r.gm === 'tema') {
     if (r.curSlot === 'INSTRUMENTAL') return TEMA_INSTR;
     if (r.curSlot === 'VIDEO') return TEMA_VIDEO;
     return POOL.k;
   }
-  return POOL[r.mode];
+  return poolOf(r);
 };
 // Puestos donde cada jugador puede colocar a sus personajes (según el modo de partida)
 const rolesOf = (r, p) => r.gm === 'xi' ? FORMS[p.form || '433']
@@ -222,7 +397,7 @@ function view(r) {
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
     players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
-    offers: r.offers, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
+    offers: r.offers, fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
   };
@@ -457,28 +632,69 @@ function simFixture(teams) { // método del círculo: 8 participantes -> 7 jorna
   }
   return rounds;
 }
+function simFixKodigo(r) { // Kodigo no puede tocar la liga argentina: se cambia por un freestyler de otra liga (o por uno libre si es la única)
+  const leagues = r.sim.leagues;
+  const arg = leagues.find(l => l.name === 'FMS Argentina'), kd = arg && arg.teams.find(t => key(t) === 'kodigo');
+  if (!kd) return;
+  const other = leagues.find(l => l !== arg);
+  const swap = other ? simShuffle(other.teams)[0] : simShuffle(fPool(r)).find(x => !leagues.some(l => l.teams.includes(x)) && key(x) !== 'kodigo');
+  if (!swap) return;
+  const mv = (lg, a, b) => { lg.teams[lg.teams.indexOf(a)] = b; lg.cache[b] = lg.cache[a]; lg.st[b] = lg.st[a]; delete lg.cache[a]; delete lg.st[a]; lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === a ? b : n))); };
+  mv(arg, kd, swap);
+  if (other) mv(other, swap, kd);
+  leagues.forEach(l => { const pl = r.players.find(p => p.id === l.ownerId); if (pl) pl.roster = l.teams.slice(); });
+}
 function simStart(r) {
-  const n = r.players.length;
-  const leagueIdx = simShuffle(SIM_LEAGUES.map((_, i) => i)).slice(0, n); // a cada jugador le toca una liga al azar
-  let bag = simShuffle(POOL.f);
-  const leagues = r.players.map((p, i) => {
-    if (bag.length < SIM_TEAM) { const left = new Set(bag.map(key)); bag = [...bag, ...simShuffle(POOL.f).filter(x => !left.has(key(x)))]; }
-    const teams = bag.splice(0, SIM_TEAM);
+  const n = r.players.length, elite = r.fset === 'elite', all = fPool(r);
+  // Élite: a cada jugador le toca una liga (país) al azar. TWB: estos nombres son provisionales, luego cada jugador elige la suya.
+  const names = simShuffle(SIM_LEAGUES).slice(0, n);
+  const used = new Set(), leagues = new Array(n);
+  const idxs = r.players.map((_, i) => i).sort((a, b) => (LEAGUE_CC[names[a]] ? 0 : 1) - (LEAGUE_CC[names[b]] ? 0 : 1)); // primero las ligas con país, Caribe (cualquiera) al final
+  idxs.forEach(i => {
+    const p = r.players[i], lname = names[i];
+    const ok = x => !used.has(key(x)) && (!elite || (eligLg(r, lname, x) && !noKodigo({ name: lname }, x)));
+    let teams = simShuffle(all).filter(ok).slice(0, SIM_TEAM);
+    if (teams.length < SIM_TEAM) { const have = new Set(teams.map(key)); teams = [...teams, ...simShuffle(all).filter(x => !have.has(key(x)) && (!elite || eligLg(r, lname, x)))].slice(0, SIM_TEAM); } // por si la bolsa se queda corta
+    teams.forEach(t => used.add(key(t)));
     p.roster = teams.slice(); p.cast = {}; p.chars = {};
     const cache = {}, st = {};
     teams.forEach(t => { cache[t] = CACHE_START; st[t] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
-    return { name: SIM_LEAGUES[leagueIdx[i]], ownerId: p.id, ownerName: p.name, teams, cache, st, fix: simFixture(teams) };
+    leagues[i] = { name: lname, ownerId: p.id, ownerName: p.name, teams, cache, st, fix: simFixture(teams) };
   });
-  const usedK = new Set(leagues.flatMap(l => l.teams).map(key));
-  const spare = simShuffle(POOL.f).filter(x => !usedK.has(key(x))); // suplentes para las bajas
+  const spare = simShuffle(all).filter(x => !used.has(key(x))); // suplentes para las bajas
   r.sim = {
     id: Date.now(), jury: (r.jury === 5 && n >= 6) ? 5 : 3, leagues,
     order: simShuffle(leagues.map((_, i) => i)), // orden (al azar) en que se juega cada jornada de cada liga
     stage: 'league', ko: -1, intl: n >= SIM_INTL_PLAYERS ? { q: [], champ: null, lgs: n === SIM_INTL_PLAYERS ? leagues.map((_, i) => i) : null, vres: null } : null, lvotes: {}, // q = clasificados a la Gran Final {l: liga, n: freestyler, via}
-    j: 1, li: 0, b: 0, round: 1, step: 'draw', battles: [], jurors: [], votes: {}, last: null, needRep: false,
-    mk: null, ev: null, evSeq: 0, dft: null, spare
+    j: 1, li: 0, b: 0, round: 1, step: elite ? 'draw' : 'lpick', battles: [], jurors: [], votes: {}, last: null, needRep: false,
+    mk: null, ev: null, evSeq: 0, dft: null, spare,
+    lp: elite ? null : { order: simShuffle(r.players.map(p => p.id)), idx: 0, picks: {} }
   };
   r.phase = 'sim';
+  if (elite) return push(r);
+  simLpAuto(r);
+}
+// ---- TWB: cada jugador elige su liga (por turnos al azar) ----
+function simLpPick(r, pid, name) { // name null = al azar
+  const L = r.sim.lp, free = SIM_LEAGUES.filter(x => !Object.values(L.picks).includes(x));
+  if (name == null) name = simShuffle(free)[0];
+  if (!free.includes(name)) return false;
+  L.picks[pid] = name; L.idx++;
+  return true;
+}
+function simLpAuto(r) {
+  const S = r.sim; if (!S || S.step !== 'lpick') return;
+  const L = S.lp;
+  while (L.idx < L.order.length) {
+    const p = find(r, L.order[L.idx]);
+    if (p && !p.bot && p.on) break;
+    simLpPick(r, L.order[L.idx], null);
+  }
+  if (L.idx >= L.order.length) {
+    S.leagues.forEach(lg => { lg.name = L.picks[lg.ownerId] || lg.name; });
+    simFixKodigo(r);
+    S.step = 'draw';
+  }
   push(r);
 }
 function simMakeJury(r, exclude, auto) { // 3 (o 5) jurados; los dueños de los freestylers que se enfrentan no votan; el último voto puede ser del favorito por caché
@@ -591,6 +807,7 @@ function simPending(r) { // tras una desconexión / salida: repasar lo que estab
   if (S.step === 'lvote') { simLeagueAuto(r); return simLeagueCheck(r); }
   if (S.step === 'ev') return simEventAuto(r);
   if (S.step === 'dft') return simDraftAuto(r);
+  if (S.step === 'lpick') return simLpAuto(r);
   push(r);
 }
 function simIntlBegin(r, kind) { // kind: 'cut1' | 'cut2'
@@ -663,6 +880,7 @@ function simDraftSwap(r, pid, take, give) { // el jugador cede «give» (de su l
   const b = S.leagues.findIndex((lg, l) => l !== a && lg.teams.includes(take));
   if (b < 0 || !S.leagues[a].teams.includes(give) || D.locked.includes(take) || D.locked.includes(give)) return false;
   const A = S.leagues[a], B = S.leagues[b];
+  if (noKodigo(A, take) || noKodigo(B, give)) return false;
   A.teams[A.teams.indexOf(give)] = take; B.teams[B.teams.indexOf(take)] = give;
   const cg = A.cache[give], sg = A.st[give], ct = B.cache[take], stt = B.st[take];
   delete A.cache[give]; delete A.st[give]; delete B.cache[take]; delete B.st[take];
@@ -703,8 +921,9 @@ function simDraftAuto(r) { // los turnos de bots y desconectados se juegan solos
 function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler nuevo. mode: 'inherit' (hereda los puntos) | 'redo' (empieza de cero y rehace sus batallas)
   const S = r.sim, lg = S.leagues[li];
   const used = new Set(S.leagues.flatMap(l => l.teams).map(key));
-  let nw = (S.spare || []).find(x => !used.has(key(x)));
-  if (!nw) nw = simShuffle(POOL.f).find(x => !used.has(key(x)));
+  let nw = (S.spare || []).find(x => !used.has(key(x)) && !noKodigo(lg, x) && eligLg(r, lg.name, x));
+  if (!nw) nw = simShuffle(fPool(r)).find(x => !used.has(key(x)) && !noKodigo(lg, x) && eligLg(r, lg.name, x));
+  if (!nw) nw = simShuffle(fPool(r)).find(x => !used.has(key(x)) && !noKodigo(lg, x));
   if (!nw) return null;
   S.spare = (S.spare || []).filter(x => x !== nw);
   const oldSt = lg.st[old], prev = [];
@@ -842,6 +1061,7 @@ function simView(r) {
   const v = {
     id: S.id, step: S.step, j: S.j, jn: SIM_TEAM - 1, jury: S.jury, li: S.li, total: S.order.length, order: S.order,
     stage: S.stage, ko: S.ko, cutJ: SIM_CUT_J, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, piqueCache: CACHE_PIQUE,
+    lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
     dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS } : null,
     ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, j: S.j, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
     intl: S.intl ? { q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via })), champ: S.intl.champ, lgs: S.intl.lgs, vres: S.step === 'lres' ? S.intl.vres : null } : null,
@@ -954,6 +1174,12 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'lobby' || r.players.length < (r.gm === 'sim' ? 1 : 2)) return;
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std';
     if ((r.gm === 'versus' || r.gm === 'sim') && r.mode !== 'f') r.gm = 'std';
+    { // ruleta: ¿freestylers de TWB o élite? (solo con Freestylers, en cualquier modo de partida)
+      const prev = r.fset;
+      r.fset = r.mode === 'f' ? (Math.random() < 0.5 ? 'twb' : 'elite') : null;
+      r.fsetId = Date.now();
+      if (prev !== r.fset) r.used.clear();
+    }
     if (r.gm === 'sim') { if (r.players.length > SIM_MAX) return; return simStart(r); } // simulaciones: sin subasta
     if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } else if (r.gm === 'xi') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
@@ -971,13 +1197,13 @@ io.on('connection', s => {
     }
     r.curSlot = null; r.market = false; r.sales = 0;
     r.players.forEach(p => { p.money = moneyOf(r); p.roster = []; p.cast = {}; p.chars = {}; p.rivals = []; p.form = (p.bot && Math.random() < 0.5) ? '442' : '433'; });
-    if (r.gm === 'tema' || r.gm === 'versus' || POOL[r.mode].filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
+    if (r.gm === 'tema' || r.gm === 'versus' || poolOf(r).filter(n => !r.used.has(key(n))).length < r.players.length * goalOf(r)) r.used.clear();
     if (r.gm === 'versus') { // 5 rivales distintos para cada jugador, sacados de la bolsa y apartados de la subasta
-      let bag = [...POOL.f].sort(() => Math.random() - 0.5);
+      let bag = [...fPool(r)].sort(() => Math.random() - 0.5);
       r.players.forEach(p => {
         if (bag.length < GOAL) { // con muchos jugadores la bolsa puede agotarse: se rellena (sin repetir nombres dentro de los 5 del mismo jugador)
           const left = new Set(bag.map(key));
-          bag = [...bag, ...[...POOL.f].sort(() => Math.random() - 0.5).filter(n => !left.has(key(n)))];
+          bag = [...bag, ...[...fPool(r)].sort(() => Math.random() - 0.5).filter(n => !left.has(key(n)))];
         }
         p.rivals = bag.splice(0, GOAL); p.rivals.forEach(n => r.used.add(key(n)));
       });
@@ -1148,6 +1374,7 @@ io.on('connection', s => {
   });
   s.on('simSkip', () => { // el anfitrión da por votados (al azar) a los que faltan
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
+    if (r.sim.step === 'lpick') { const L = r.sim.lp; if (L && L.idx < L.order.length) simLpPick(r, L.order[L.idx], null); return simLpAuto(r); }
     if (r.sim.step === 'ev') { const ev = r.sim.ev; if (ev && !ev.done) simEventResolve(r, simEventRandomChoice(r.sim, ev)); return; }
     if (r.sim.step === 'dft') { const D = r.sim.dft; if (D && D.idx < D.order.length) simDraftRandom(r, D.order[D.idx]); return simDraftAuto(r); }
     if (r.sim.step === 'lvote') { // quien no ha votado vota solo como un bot
@@ -1158,6 +1385,12 @@ io.on('connection', s => {
     const S = r.sim, bt = S.battles[S.b];
     S.jurors.forEach((j, i) => { if (!(i in S.votes)) S.votes[i] = simAi(simCacheOf(S, bt, 'a'), simCacheOf(S, bt, 'b'), S.round === 1); });
     simAutoVotes(r); simCheck(r);
+  });
+  s.on('simLeaguePick', name => { // TWB: el jugador elige su liga
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'lpick') return;
+    const L = r.sim.lp; if (!L || L.idx >= L.order.length || L.order[L.idx] !== p.id) return;
+    if (!simLpPick(r, p.id, String(name))) return;
+    simLpAuto(r);
   });
   s.on('simEvent', c => { // decisión del jugador afectado por el evento
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'ev') return;
@@ -1207,7 +1440,7 @@ io.on('connection', s => {
     } else {
       if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
       if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
-      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft'].includes(r.sim.step)) return simPending(r);
+      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft', 'lpick'].includes(r.sim.step)) return simPending(r);
       push(r);
     }
   });
