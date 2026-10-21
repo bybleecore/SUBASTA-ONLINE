@@ -84,6 +84,21 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 button.vbtn{display:block;width:100%;margin:8px 0}
 .banner{padding:12px;border-radius:10px;background:var(--y);color:#2A1B5E;font:400 1.1rem 'Bowlby One',Impact,sans-serif;margin:10px 0;text-align:center}
 .banner.rep{background:var(--r);color:#fff}
+/* simulaciones: dorado (clasificados), arcoíris (campeones), ruleta */
+.chip.gold,.tbl tr.gold td{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8);color:#2A1B5E;font-weight:600}
+.chip.gold small{color:#2A1B5E;opacity:.8}
+.banner.gold{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8)}
+.glow{animation:glow 1.4s ease-in-out infinite alternate}
+@keyframes glow{from{box-shadow:0 0 3px #FFD23F}to{box-shadow:0 0 14px 4px #FFD23F}}
+.chip.rainbow,.banner.rainbow,.tbl tr.rainbow td{background:linear-gradient(90deg,#ff3b3b,#ff9f1c,#ffe83b,#3bd16f,#3b9eff,#8a3bff,#ff3bd4,#ff3b3b);background-size:200% 100%;animation:rb 3s linear infinite;color:#1a1033;font-weight:700}
+.chip.rainbow small{color:#1a1033}
+@keyframes rb{to{background-position:200% 0}}
+.qpanel{border:2px solid var(--y)}
+.wheelw{position:relative;width:240px;height:262px;margin:10px auto 0}
+.wheelw .ptr{position:absolute;left:50%;top:0;transform:translateX(-50%);font-size:2rem;color:var(--y);z-index:2;line-height:1}
+.wheel{position:absolute;left:0;right:0;bottom:0;height:240px;border-radius:50%;border:4px solid var(--y);background:conic-gradient(#E8383D 0 25%,#3b9eff 25% 50%,#ff9f1c 50% 75%,#8a3bff 75% 100%)}
+.wheel .wl{position:absolute;transform:translate(-50%,-50%);font-size:2.2rem;line-height:1}
+@media (prefers-reduced-motion:reduce){.glow,.chip.rainbow,.banner.rainbow,.tbl tr.rainbow td{animation:none}}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -518,28 +533,42 @@ function render(){
 /* ---------- SIMULACIONES (ligas FMS) ---------- */
 let simAnim={id:null,t0:0,skip:false},simTimer=null,simPick=[];
 const SIM_LG_MS=1300,SIM_NAME_MS=420;
-function simTable(t,hl){
+function simTable(t,hl,o){
   let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
-  t.forEach((x,i)=>{h+='<tr'+(hl&&hl.includes(x.n)?' class="hl"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>'});
-  return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota</small>';
+  t.forEach((x,i)=>{
+    const ch=o&&o.champ===x.n,ql=o&&o.q.includes(x.n);
+    const cl=ch?'rainbow':ql?'gold':(hl&&hl.includes(x.n)?'hl':'');
+    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':ql?'🎟 ':'')+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
+  });
+  return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota'+(o&&(o.champ||o.q.length)?' · 🎟 dorado: clasificado a la Gran Final'+(o.champ?' · 🌈 arcoíris: campeón de liga':''):'')+'</small>';
+}
+function simTO(V,li){ // opciones de la tabla de la liga li: clasificados (dorado) y campeón si la liga ya acabó (arcoíris)
+  const lg=V.leagues[li];
+  return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null};
 }
 const KO_NAMES=['Octavos de final','Cuartos de final','Semifinales','Gran final'];
 const lgShort=(V,i)=>(i==null||!V.leagues[i])?'':V.leagues[i].name.replace('FMS ','');
 function simStageTitle(V){
+  if(V.stage==='pique')return '🌶 Pique entre ligas · exhibición';
   if(V.stage==='cut1')return '🌍 FMS Internacional · primer corte';
   if(V.stage==='cut2')return '🌍 FMS Internacional · segundo corte';
   if(V.stage==='ko')return '🏆 FMS Internacional · '+KO_NAMES[V.ko];
   return '';
 }
 function simStageInfo(V){
+  if(V.stage==='pique')return 'Exhibición fuera de la tabla: solo mueve caché. El ganador se lleva +'+V.piqueCache+'$.';
   if(V.stage==='cut1')return 'Los 4 primeros de cada liga tras la jornada '+V.cutJ+': el 1.º se cruza con el 4.º de otra liga y el 2.º con el 3.º de otra liga. Los 8 ganadores clasifican a la Gran Final.';
   if(V.stage==='cut2')return 'Ligas terminadas. Los 4 mejores de cada tabla que aún no están clasificados se cruzan igual (1.º vs 4.º y 2.º vs 3.º de otra liga). Otros 8 billetes a la Gran Final.';
   if(V.stage==='ko')return 'Eliminatoria directa entre los 16 clasificados. El campeón de la FMS Internacional se lleva +'+V.intlChamp+'$ de caché.';
   return '';
 }
-function simQual(V){
-  const q=V.intl?V.intl.q:[];
-  return '<h2>🎟 Clasificados a la Gran Final ('+q.length+'/16)</h2><div>'+(q.length?q.map(x=>'<span class="chip">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
+function simPanel(V){ // siempre visible durante la temporada: clasificados a la Gran Final (dorado) y campeones de liga (arcoíris)
+  if(!V.intl)return '';
+  const q=V.intl.q,cut=V.stage==='cut1'||V.stage==='cut2';
+  let h='<div class="box qpanel"><b>🎟 Clasificados a la Gran Final ('+q.length+'/16)</b><div style="margin-top:4px">'+(q.length?q.map(x=>'<span class="chip gold'+(cut?' glow':'')+'">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
+  const ch=V.leagues.filter(l=>l.fin).map(l=>'<span class="chip rainbow">🌈 '+esc(l.table[0].n)+' <small>'+esc(l.name.replace('FMS ',''))+'</small></span>');
+  if(ch.length)h+='<div style="margin-top:8px"><b>🌈 Campeones de liga</b></div><div>'+ch.join('')+'</div>';
+  return h+'</div>';
 }
 function simVs(bt,res){
   const V=S.sim,intl=V&&V.stage&&V.stage!=='league';
@@ -563,16 +592,92 @@ function simBattleList(cur,upto){
     return '<div class="pl"><span>'+(i+1)+'. '+nm(bt.a,bt.la)+' vs '+nm(bt.b,bt.lb)+'</span><small>'+tag+'</small></div>';
   }).join('');
 }
+function simAfterLabel(V){ // lo que viene al terminar la jornada (y su evento)
+  if(V.intl&&V.j===V.cutJ)return V.intl.lgs?'🌍 Primer corte de la FMS Internacional':'🗳 Votar las 4 mejores ligas';
+  if(V.j<V.jn)return 'Jornada '+(V.j+1)+' · '+V.leagues[V.order[0]].name;
+  return V.intl?'🌍 Segundo corte de la FMS Internacional':'Ver el final de la temporada';
+}
 function simNextLabel(V){
+  if(V.mk||V.stage==='pique')return simAfterLabel(V);
   if(V.stage==='league'){
     if(V.li<V.total-1)return 'Siguiente liga: '+V.leagues[V.order[V.li+1]].name;
-    if(V.intl&&V.j===V.cutJ)return V.intl.lgs?'🌍 Primer corte de la FMS Internacional':'🗳 Votar las 4 mejores ligas';
-    if(V.j<V.jn)return 'Jornada '+(V.j+1)+' · '+V.leagues[V.order[0]].name;
-    return V.intl?'🌍 Segundo corte de la FMS Internacional':'Ver el final de la temporada';
+    if(V.j<V.jn)return 'Fin de la jornada '+V.j;
+    return simAfterLabel(V);
   }
   if(V.stage==='cut1')return 'Volver a las ligas: jornada '+(V.cutJ+1)+' · '+V.leagues[V.order[0]].name;
   if(V.stage==='cut2')return '🏆 Gran Final: '+KO_NAMES[0];
   return V.ko<3?KO_NAMES[V.ko+1]:'Ver el final de la temporada';
+}
+/* ---- eventos tras la jornada ---- */
+const EV_INFO={baja:['🚪','Se baja un competidor'],viral:['📈','Batalla viral'],polemica:['🔥','Polémica'],pique:['🌶','Pique a una liga contraria']};
+const EV_ORDER=['baja','viral','polemica','pique'],EV_MS=4200;
+let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null};
+const evAngle=(k,id,p)=>{const j=((id*37)%60)-30;return (2160-(k*90+45+j))*(1-Math.pow(1-p,3))};
+function evSpin(k,id){
+  cancelAnimationFrame(evRaf);
+  const f=()=>{
+    const w=document.getElementById('wheel');if(!w||evAnim.id!==id)return;
+    const p=evAnim.skip?1:Math.min(1,(performance.now()-evAnim.t0)/EV_MS);
+    w.style.transform='rotate('+evAngle(k,id,p)+'deg)';
+    if(p<1)evRaf=requestAnimationFrame(f);
+  };f();
+}
+function evWheel(deg){
+  const lbl=EV_ORDER.map((t,k)=>{const a=(k*90+45)*Math.PI/180;return '<span class="wl" style="left:'+(50+33*Math.sin(a)).toFixed(1)+'%;top:'+(50-33*Math.cos(a)).toFixed(1)+'%">'+EV_INFO[t][0]+'</span>'}).join('');
+  return '<div class="wheelw"><div class="ptr">▼</div><div id="wheel" class="wheel" style="transform:rotate('+deg+'deg)">'+lbl+'</div></div>';
+}
+function simEventHTML(V,host,spin){
+  const ev=V.ev,lg=V.leagues[ev.li],k=EV_ORDER.indexOf(ev.type),info=EV_INFO[ev.type],itsMe=lg.owner===myId,R=ev.res,t=esc(ev.target||'');
+  const deg=evAngle(k,ev.id,spin?Math.min(1,(performance.now()-evAnim.t0)/EV_MS):1);
+  let h='<h2>🎲 Evento tras la jornada '+ev.j+'</h2><div class="banner">Le toca a <b>'+esc(lg.ownerName)+'</b>'+(itsMe?' (tú)':'')+' · '+esc(lg.name)+'</div>'+evWheel(deg);
+  if(spin)return h+'<p><small>🎡 Girando la ruleta…</small></p><button class="alt" data-sim="evanim">Saltar animación</button>';
+  h+='<div class="banner pop">'+info[0]+' '+info[1]+'</div>';
+  const wait='<p><small>Esperando a que decida '+esc(lg.ownerName)+'…</small></p>';
+  if(ev.type==='baja'){
+    if(!ev.done){
+      h+='<p><b>'+t+'</b> ('+ev.pts+' pts) se baja de la liga y otro freestyler lo reemplaza.</p>';
+      h+=itsMe?'<p><b>¿Cómo entra el reemplazo?</b></p><button class="vbtn" data-evc="inherit">📋 Entra con los puntos de '+t+' ('+ev.pts+' pts)</button><button class="vbtn alt" data-evc="redo">🔁 Empieza de cero y hace todas sus batallas otra vez ('+ev.j+' en una jornada de recuperación)</button>':wait;
+    }else h+='<p>🚪 <b>'+esc(R.old)+'</b> se baja. <b>'+esc(R.nw)+'</b> entra en su lugar con '+V.cacheStart+'$ de caché'+(R.mode==='inherit'?' y los '+R.pts+' puntos de '+esc(R.old)+'.':' y empieza de cero: jugará en una jornada de recuperación las '+R.redo+' batallas que ya se habían disputado.')+'</p>';
+  }else if(ev.type==='viral'){
+    h+='<p>📈 ¡La batalla <b>'+esc(R.a)+'</b> vs <b>'+esc(R.b)+'</b> de la jornada '+ev.j+' se hace viral! Cada uno gana <b>+'+R.gain+'$</b> de caché.</p>';
+  }else if(ev.type==='polemica'){
+    if(!ev.done){
+      h+='<p><b>'+t+'</b> ('+ev.cache+'$ de caché, '+ev.pts+' pts) ha montado una polémica en esta liga.</p>';
+      h+=itsMe?'<p><b>¿Qué haces?</b></p><button class="vbtn" data-evc="keep">💸 No pagarle y mantenerlo en la liga (pierde '+ev.loss+'$ de caché)</button><button class="vbtn alt" data-evc="fire">🚪 Echarlo: entra otro con sus '+ev.pts+' puntos y '+V.cacheStart+'$ de caché</button>':wait;
+    }else h+=R.keep?'<p>💸 No le pagas a <b>'+esc(R.t)+'</b>, pero lo mantienes en la liga: pierde <b>−'+R.loss+'$</b> de caché.</p>':'<p>🚪 Echas a <b>'+esc(R.t)+'</b>. <b>'+esc(R.nw)+'</b> entra en su lugar con sus puntos y '+V.cacheStart+'$ de caché.</p>';
+  }else if(ev.type==='pique'){
+    if(!ev.done){
+      h+='<p>Puedes calentar las cosas con una liga contraria: una exhibición de uno de tus freestylers contra uno de los suyos (al azar). El ganador gana <b>+'+V.piqueCache+'$</b> de caché.</p>';
+      if(itsMe){
+        h+='<p><b>1. Elige a tu freestyler</b></p>'+lg.teams.map(n=>'<button class="sm'+(evPick.own===n?' sel':' alt')+'" data-evown="'+esc(n)+'">'+esc(n)+'</button>').join('');
+        h+='<p><b>2. Elige la liga rival</b></p>'+V.leagues.map((l,i)=>i===ev.li?'':'<button class="sm" data-evlg="'+i+'"'+(evPick.own?'':' disabled')+'>'+esc(l.name)+'</button>').join('');
+        h+='<button class="vbtn alt" data-evc="pass">Mejor no: no hay pique</button>';
+      }else h+=wait;
+    }else h+=R.pass?'<p>🕊 Se queda todo en paz: no hay pique.</p>':'<p>🌶 ¡Pique! <b>'+esc(R.pq.a)+'</b> <small>('+esc(lgShort(V,R.pq.la))+')</small> contra <b>'+esc(R.pq.b)+'</b> <small>('+esc(lgShort(V,R.pq.lb))+')</small>.</p>';
+  }
+  return h;
+}
+/* ---- draft entre ligas ---- */
+function simDraftHTML(V,host){
+  const D=V.dft,cur=D.idx<D.order.length?D.order[D.idx]:null,mine=cur===myId&&!D.done;
+  const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
+  const lock=n=>D.locked.includes(n),mi=V.leagues.findIndex(l=>l.owner===myId);
+  let h='<h2>🔀 Draft entre ligas</h2><p><small>Por turnos ('+D.rounds+' rondas en serpiente) cada jugador puede ficharse a un freestyler de otra liga a cambio de uno de los suyos. Los dos intercambiados quedan bloqueados 🔒. También puedes pasar.</small></p>';
+  h+=D.done?'<div class="banner">✅ Draft terminado</div>':'<div class="banner'+(mine?' pop':'')+'">Turno '+(D.idx+1)+' de '+D.order.length+': '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
+  V.leagues.forEach((lg,i)=>{
+    h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<div style="margin-top:6px">'+lg.teams.map(n=>{
+      if(mine&&!lock(n)){
+        if(i===mi)return '<button class="sm'+(dftPick.give===n?' sel':' alt')+'" data-dgive="'+esc(n)+'">'+esc(n)+'</button>';
+        return '<button class="sm'+(dftPick.take===n?' sel':' alt')+'" data-dtake="'+esc(n)+'">'+esc(n)+'</button>';
+      }
+      return '<span class="chip">'+(lock(n)?'🔒 ':'')+esc(n)+'</span>';
+    }).join('')+'</div></div>';
+  });
+  if(mine)h+='<p><small>Toca un freestyler de otra liga (fichar) y uno tuyo (ceder).</small></p><button data-dgo="swap"'+(dftPick.take&&dftPick.give?'':' disabled')+'>Fichar / intercambiar</button><button class="alt" data-dgo="pass">Pasar</button>';
+  if(D.log.length)h+='<h2>Movimientos</h2>'+D.log.map(x=>'<div class="pl"><span>'+esc(nm(x.pid))+'</span><small>'+(x.pass?'pasó':'fichó a <b>'+esc(x.take)+'</b> ('+esc(V.leagues[x.from].name)+') y cedió a <b>'+esc(x.give)+'</b>')+'</small></div>').join('');
+  if(D.done)h+=host?'<button data-sim="next">Empezar la temporada</button>':'<small>Esperando al anfitrión…</small>';
+  else if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que el turno actual se decida solo (al azar)</button>';
+  return h;
 }
 function renderSim(m,host){
   const box=$('simBox'),V=S.sim;
@@ -583,9 +688,12 @@ function renderSim(m,host){
   const nextBtn=(txt)=>host?'<button data-sim="next">'+txt+'</button>':'<small>Esperando al anfitrión…</small>';
   const isLg=V.stage==='league';
   if(V.step!=='lvote')simPick=[];
+  if(V.step!=='dft')dftPick={take:null,give:null};
+  if(V.step!=='ev')evPick={own:null};
   let h='';
   if(V.step!=='draw'&&V.step!=='end'&&V.cur){
-    if(isLg)h+='<div class="box"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+esc(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
+    if(V.mk)h+='<div class="box"><b>🔄 Jornada de recuperación</b> · '+esc(V.leagues[V.cur.lg].name)+'<br><small>El reemplazo vuelve a jugar las batallas que ya había disputado el freestyler que se bajó.</small></div>';
+    else if(isLg)h+='<div class="box"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+esc(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
     else h+='<div class="box"><b>'+simStageTitle(V)+'</b><br><small>'+esc(simStageInfo(V))+'</small></div>';
   }
   if(V.step==='draw'){
@@ -602,10 +710,19 @@ function renderSim(m,host){
       h+='<button class="alt" data-sim="anim">Saltar animación</button>';
       simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
     }else{
-      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores.</small></p>';
+      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar'+(V.leagues.length>1?' hay un draft entre ligas y':'')+', al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).</small></p>';
       if(V.intl)h+='<p><small>🌍 Habrá FMS Internacional'+(V.total>4?' (tras la jornada '+V.cutJ+' votáis las 4 mejores ligas y solo esas van)':'')+'. Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
-      h+=nextBtn('Empezar la temporada');
+      h+=nextBtn(V.leagues.length>1?'🔀 Ir al draft entre ligas':'Empezar la temporada');
     }
+  }else if(V.step==='dft'&&V.dft){
+    h+=simDraftHTML(V,host);
+  }else if(V.step==='ev'&&V.ev){
+    if(evAnim.id!==V.ev.id)evAnim={id:V.ev.id,t0:performance.now(),skip:false};
+    const el=evAnim.skip?1e9:performance.now()-evAnim.t0,spin=el<EV_MS;
+    h+=simEventHTML(V,host,spin);
+    if(spin)simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='ev')renderSim(me(),S.hostId===myId)},EV_MS-el+60);
+    else if(V.ev.done){const R=V.ev.res;h+=nextBtn(R&&R.redo>0?'🔄 Jornada de recuperación':R&&R.pq?'🌶 Empezar la exhibición':simAfterLabel(V))}
+    else if(host)h+='<button class="alt sm" data-sim="skip">Decidir al azar por él</button>';
   }else if(V.step==='lvote'){
     const voted=V.lvoted.includes(myId),isVoter=V.lvoters.some(p=>p.id===myId);
     h+='<h2>🗳 Las 4 mejores ligas</h2><p>Hay '+V.total+' ligas, pero a la FMS Internacional solo van 4. Vota cuáles son las 4 mejores (puedes votar la tuya).</p>';
@@ -624,19 +741,18 @@ function renderSim(m,host){
     const cur=V.cur;
     if(isLg){
       const lg=V.leagues[cur.lg];
-      h+='<h2>'+esc(lg.name)+' · jornada '+V.j+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(cur.lg===mine?' (tú)':'')+'. Estas son las '+cur.battles.length+' batallas de hoy:</p>';
+      h+='<h2>'+esc(lg.name)+(V.mk?' · jornada de recuperación':' · jornada '+V.j)+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(cur.lg===mine?' (tú)':'')+'. Estas son las '+cur.battles.length+' batallas de hoy:</p>';
       cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
       h+='<h2>Jurado de la jornada</h2><div>'+simJurors(cur)+'</div>';
-      if(V.j>=2)h+='<p><small>💰 Desde la jornada 2 uno de los votos va asegurado al freestyler con más caché de cada batalla.</small></p>';
-      h+=nextBtn('Empezar la jornada');
+      if(V.j>=2||V.mk)h+='<p><small>💰 Desde la jornada 2 uno de los votos va asegurado al freestyler con más caché de cada batalla.</small></p>';
+      h+=nextBtn(V.mk?'Empezar la recuperación':'Empezar la jornada');
     }else{
-      h+='<h2>'+simStageTitle(V)+'</h2><p>'+cur.battles.length+' batallas:</p>';
+      h+='<h2>'+simStageTitle(V)+'</h2><p>'+(V.stage==='pique'?esc(simStageInfo(V)):cur.battles.length+' batallas:')+'</p>';
       cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
       if(V.stage==='ko'&&V.ko===0)h+='<p><small>🎲 Llaves sorteadas al azar entre los 16 clasificados (se evita cruzar a dos de la misma liga cuando se puede).</small></p>';
-      if(V.total>4&&V.intl&&V.intl.lgs)h+='<p><small>Ligas en la inter: '+V.intl.lgs.map(l=>esc(lgShort(V,l))).join(' · ')+'</small></p>';
+      if(V.stage!=='pique'&&V.total>4&&V.intl&&V.intl.lgs)h+='<p><small>Ligas en la inter: '+V.intl.lgs.map(l=>esc(lgShort(V,l))).join(' · ')+'</small></p>';
       h+='<p><small>🎙 Cada batalla tiene su propio jurado: no vota ningún jugador cuyos freestylers se enfrentan, y un voto va asegurado al favorito por caché.</small></p>';
-      if(V.stage!=='ko')h+=simQual(V);
-      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():'Empezar el corte');
+      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():V.stage==='pique'?'Empezar la exhibición':'Empezar el corte');
     }
   }else if(V.step==='vote'){
     const cur=V.cur,bt=cur.battles[cur.b],seat=cur.jurors.findIndex(j=>j.k==='p'&&j.id===myId);
@@ -676,10 +792,11 @@ function renderSim(m,host){
     const cur=V.cur;
     if(isLg){
       const lg=V.leagues[cur.lg];
-      h+='<h2>'+esc(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table)+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+      h+='<h2>'+esc(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+      if(!V.mk&&V.j===V.jn&&lg.fin)h+='<div class="banner rainbow pop">🌈 Campeón de '+esc(lg.name)+': '+esc(lg.table[0].n)+'</div>';
     }else{
       h+='<h2>'+simStageTitle(V)+' · resultados</h2>'+simBattleList(cur,-1);
-      if(!(V.stage==='ko'&&V.ko===3))h+=simQual(V);
+      if(V.stage==='cut1'||V.stage==='cut2'){const nq=V.intl.q.filter(x=>x.via===V.stage).length;h+='<div class="banner gold glow pop">🎟 '+nq+' clasificados a la Gran Final en este corte</div>'}
     }
     h+=nextBtn(simNextLabel(V));
   }else if(V.step==='end'){
@@ -692,13 +809,15 @@ function renderSim(m,host){
       h+='<h2>Clasificación final por caché</h2>'+W.ranking.map((x,i)=>'<div class="pl'+(i===0?' win':'')+'"><span>'+(i+1)+'. <b>'+esc(x.ownerName)+'</b>'+(x.owner===myId?' (tú)':'')+' · '+esc(x.n)+'</span><small>'+x.c+'$</small></div>').join('');
     }
     h+='<h2>Campeones de liga</h2>';
-    V.leagues.forEach(lg=>{
+    V.leagues.forEach((lg,i)=>{
       const c=lg.table[0];
-      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n])+'</div>';
+      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
+  if(V.step!=='draw'&&V.step!=='dft')h+=simPanel(V);
   box.innerHTML=h;
+  if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
 $('simBox').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
@@ -707,6 +826,14 @@ $('simBox').onclick=e=>{
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
+  else if(b.dataset.evc)socket.emit('simEvent',b.dataset.evc==='pass'?{pass:true}:b.dataset.evc);
+  else if(b.dataset.evown!==undefined){evPick.own=evPick.own===b.dataset.evown?null:b.dataset.evown;renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.evlg!==undefined){if(evPick.own)socket.emit('simEvent',{lg:+b.dataset.evlg,n:evPick.own})}
+  else if(b.dataset.sim==='evanim'){evAnim.skip=true;renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.dtake!==undefined){dftPick.take=dftPick.take===b.dataset.dtake?null:b.dataset.dtake;renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.dgive!==undefined){dftPick.give=dftPick.give===b.dataset.dgive?null:b.dataset.dgive;renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.dgo==='swap'){if(dftPick.take&&dftPick.give){socket.emit('simDraft',{take:dftPick.take,give:dftPick.give});dftPick={take:null,give:null}}}
+  else if(b.dataset.dgo==='pass'){socket.emit('simDraft',{pass:true});dftPick={take:null,give:null}}
   else if(b.dataset.sim==='anim'){simAnim.skip=true;renderSim(me(),S.hostId===myId)}
   else if(b.dataset.sim==='again')socket.emit('restart');
 };
