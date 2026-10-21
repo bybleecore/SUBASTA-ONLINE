@@ -625,7 +625,7 @@ function simNextLabel(V){
 /* ---- eventos tras la jornada ---- */
 const EV_INFO={baja:['🚪','Se baja un competidor'],viral:['📈','Batalla viral'],polemica:['🔥','Polémica'],pique:['🌶','Pique a una liga contraria']};
 const EV_ORDER=['baja','viral','polemica','pique'],EV_MS=4200;
-let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null};
+let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null},rrSel=[];
 const evAngle=(k,id,p)=>{const j=((id*37)%60)-30;return (2160-(k*90+45+j))*(1-Math.pow(1-p,3))};
 function evSpin(k,id){
   cancelAnimationFrame(evRaf);
@@ -673,10 +673,11 @@ function simEventHTML(V,host,spin){
 }
 /* ---- draft entre ligas ---- */
 function simDraftHTML(V,host){
-  const D=V.dft,cur=D.idx<D.order.length?D.order[D.idx]:null,mine=cur===myId&&!D.done;
+  const D=V.dft,cur=D.idx<D.order.length?D.order[D.idx]:null,mine=cur===myId&&!D.done&&!D.prop;
   const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
   const lock=n=>D.locked.includes(n),mi=V.leagues.findIndex(l=>l.owner===myId);
-  let h='<h2>🔀 Draft entre ligas</h2><p><small>Por turnos ('+D.rounds+' rondas en serpiente) cada jugador puede ficharse a un freestyler de otra liga a cambio de uno de los suyos. Los dos intercambiados quedan bloqueados 🔒. También puedes pasar.</small></p>';
+  let h='<h2>🔀 Draft entre ligas</h2><p><small>Cada jugador, por turnos, puede proponer UN intercambio: un freestyler de otra liga por uno de los suyos. El dueño de esa liga tiene que aceptar; si rechaza, pierdes tu turno. Los intercambiados quedan bloqueados 🔒. También puedes pasar.</small></p>';
+  if(D.prop){const P=D.prop,toMe=P.to===myId;h+='<div class="banner pop">🤝 '+esc(nm(P.pid))+' propone: ficha a <b>'+esc(P.take)+'</b> ('+esc(V.leagues[P.b].name)+') a cambio de <b>'+esc(P.give)+'</b></div>'+(toMe?'<button data-dans="1">✅ Aceptar</button><button class="alt" data-dans="0">❌ Rechazar (pierde su turno)</button>':'<p><small>Esperando la respuesta de '+esc(nm(P.to))+'…</small></p>');}
   h+=D.done?'<div class="banner">✅ Draft terminado</div>':'<div class="banner'+(mine?' pop':'')+'">Turno '+(D.idx+1)+' de '+D.order.length+': '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
   V.leagues.forEach((lg,i)=>{
     h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<div style="margin-top:6px">'+lg.teams.map(n=>{
@@ -688,9 +689,9 @@ function simDraftHTML(V,host){
     }).join('')+'</div></div>';
   });
   if(mine)h+='<p><small>Toca un freestyler de otra liga (fichar) y uno tuyo (ceder).</small></p><button data-dgo="swap"'+(dftPick.take&&dftPick.give?'':' disabled')+'>Fichar / intercambiar</button><button class="alt" data-dgo="pass">Pasar</button>';
-  if(D.log.length)h+='<h2>Movimientos</h2>'+D.log.map(x=>'<div class="pl"><span>'+esc(nm(x.pid))+'</span><small>'+(x.pass?'pasó':'fichó a <b>'+esc(x.take)+'</b> ('+esc(V.leagues[x.from].name)+') y cedió a <b>'+esc(x.give)+'</b>')+'</small></div>').join('');
+  if(D.log.length)h+='<h2>Movimientos</h2>'+D.log.map(x=>'<div class="pl"><span>'+esc(nm(x.pid))+'</span><small>'+(x.pass?'pasó':x.rejected?'propuso fichar a <b>'+esc(x.take)+'</b> por <b>'+esc(x.give)+'</b>, pero '+esc(nm(x.by))+' rechazó: pierde el turno':'fichó a <b>'+esc(x.take)+'</b> ('+esc(V.leagues[x.from].name)+') y cedió a <b>'+esc(x.give)+'</b>')+'</small></div>').join('');
   if(D.done)h+=host?'<button data-sim="next">Empezar la temporada</button>':'<small>Esperando al anfitrión…</small>';
-  else if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que el turno actual se decida solo (al azar)</button>';
+  else if(host&&!mine)h+='<button class="alt sm" data-sim="skip">'+(D.prop?'Que se decida solo (al azar)':'Que el turno actual se decida solo (al azar)')+'</button>';
   return h;
 }
 function renderSim(m,host){
@@ -703,6 +704,7 @@ function renderSim(m,host){
   const isLg=V.stage==='league';
   if(V.step!=='lvote')simPick=[];
   if(V.step!=='dft')dftPick={take:null,give:null};
+  if(V.step!=='rr')rrSel=[];
   if(V.step!=='ev')evPick={own:null};
   let h='';
   if(V.step!=='draw'&&V.step!=='end'&&V.cur){
@@ -724,9 +726,9 @@ function renderSim(m,host){
       h+='<button class="alt" data-sim="anim">Saltar animación</button>';
       simTimer=setTimeout(()=>{if(S&&S.phase==='sim'&&S.sim&&S.sim.step==='draw')renderSim(me(),S.hostId===myId)},160);
     }else{
-      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar'+(V.leagues.length>1?' hay un draft entre ligas y':'')+', al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
+      h+='<p><small>Cada jugador compite con sus 8 freestylers en su liga: todos contra todos, 7 jornadas. El calendario es secreto y los jurados son los demás jugadores. Antes de empezar puedes cancelar hasta 2 contratos'+(V.leagues.length>1?' y hay un draft entre ligas':'')+'. Al acabar cada jornada hay un 50% de que le pase un evento a un jugador al azar (se decide con una ruleta).'+(S.fset==='elite'?' Freestylers élite: cada liga solo recibe freestylers de su país (Caribe: cualquiera).':'')+'</small></p>';
       if(V.intl)h+='<p><small>🌍 Habrá FMS Internacional'+(V.total>4?' (tras la jornada '+V.cutJ+' votáis las 4 mejores ligas y solo esas van)':'')+'. Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
-      h+=nextBtn(V.leagues.length>1?'🔀 Ir al draft entre ligas':'Empezar la temporada');
+      h+=nextBtn('✂️ Cancelar contratos');
     }
   }else if(V.step==='lpick'&&V.lp){
     const L=V.lp,cur=L.idx<L.order.length?L.order[L.idx]:null,mine=cur===myId;
@@ -739,6 +741,20 @@ function renderSim(m,host){
       return mine?'<button class="vbtn" data-lpick="'+esc(n)+'">'+esc(n)+'</button>':'<div class="pl"><span>'+esc(n)+'</span><small>libre</small></div>';
     }).join('');
     if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que elija solo (al azar)</button>';
+  }else if(V.step==='rr'&&V.rr){
+    const R=V.rr,done=R.done.includes(myId),mylg=V.leagues.find(l=>l.owner===myId);
+    const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
+    h+='<h2>✂️ Cancelar contratos</h2><p><small>Antes del draft puedes cancelar hasta '+R.max+' contratos de los freestylers que te tocaron: se sustituyen por otros al azar (que no sean los mismos).</small></p>';
+    if(!R.applied){
+      if(!done&&mylg){
+        h+='<p><b>Toca los que quieras cancelar ('+rrSel.length+'/'+R.max+')</b></p>'+mylg.teams.map(n=>'<button class="sm'+(rrSel.includes(n)?' sel':' alt')+'" data-rrsel="'+esc(n)+'">'+esc(n)+'</button>').join('');
+        h+='<p><button data-rrgo="1"'+(rrSel.length?'':' disabled')+'>Cancelar '+(rrSel.length||'')+' contrato'+(rrSel.length===1?'':'s')+'</button><button class="alt" data-rrgo="0">Quedarme con todos</button></p>';
+      }else h+='<p><small>✅ Ya has decidido. Esperando a los demás ('+R.done.length+'/'+V.leagues.length+')…</small></p>';
+      if(host)h+='<button class="alt sm" data-sim="skip">Dar por decidido a quien falte</button>';
+    }else{
+      h+=R.log.length?R.log.map(x=>'<div class="card"><b>'+esc(nm(x.pid))+'</b> cancela:'+x.out.map(o=>'<div>✂️ '+esc(o.old)+' → <b>'+esc(o.nw)+'</b></div>').join('')+'</div>').join(''):'<div class="banner">Nadie ha cancelado contratos</div>';
+      h+=host?nextBtn(V.leagues.length>1?'🔀 Ir al draft entre ligas':'Empezar la temporada'):'<small>Esperando al anfitrión…</small>';
+    }
   }else if(V.step==='dft'&&V.dft){
     h+=simDraftHTML(V,host);
   }else if(V.step==='ev'&&V.ev){
@@ -840,7 +856,7 @@ function renderSim(m,host){
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
-  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick')h+=simPanel(V);
+  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr')h+=simPanel(V);
   box.innerHTML=h;
   if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
@@ -851,6 +867,9 @@ $('simBox').onclick=e=>{
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
+  else if(b.dataset.rrsel!==undefined){const n=b.dataset.rrsel;rrSel=rrSel.includes(n)?rrSel.filter(x=>x!==n):(rrSel.length<2?[...rrSel,n]:rrSel);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.rrgo!==undefined){socket.emit('simRr',b.dataset.rrgo==='1'?rrSel:[]);rrSel=[]}
+  else if(b.dataset.dans!==undefined)socket.emit('simDraftAns',b.dataset.dans==='1');
   else if(b.dataset.lpick!==undefined)socket.emit('simLeaguePick',b.dataset.lpick);
   else if(b.dataset.evc)socket.emit('simEvent',b.dataset.evc==='pass'?{pass:true}:b.dataset.evc);
   else if(b.dataset.evown!==undefined){evPick.own=evPick.own===b.dataset.evown?null:b.dataset.evown;renderSim(me(),S.hostId===myId)}
