@@ -37,6 +37,7 @@ const SIM_CUT_J_DBL = 2;  // lo mismo con jornada doble (3 batallas jugadas por 
 const SIM_CUT_J = 3;        // el primer corte internacional se juega al terminar esta jornada en todas las ligas
 const CACHE_INTL_WIN = 400, CACHE_INTL_WIN_REP = 200, CACHE_INTL_CHAMP = 3000; // caché en la internacional: por victoria, tras réplica y premio gordo al campeón
 const EVENT_P = 1;        // probabilidad de que haya un evento al terminar una jornada (1 = siempre; no hay tras la última jornada)
+const CACHE_MVP = 400;    // pago al MVP de cada jornada de cada liga (una victoria vale 300)
 const CACHE_VIRAL = 500;  // caché que gana cada uno de los 2 competidores de la «batalla viral»
 const CACHE_PIQUE = 500, CACHE_PIQUE_REP = 300; // caché del ganador de la exhibición del «pique» (directo / tras réplica)
 const POLEMICA_LOSS = 0.3; // «polémica»: si no le pagas y lo mantienes, pierde este % de su caché
@@ -334,7 +335,8 @@ const ELITE_RAW = [
   'GHOST (PE)'
 ];
 const ELITE_NAMES = ELITE_RAW.map(flagify);
-const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f), k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
+const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f.map(flagify)), // los de TWB también llevan su país entre paréntesis en names.js: se muestra como bandera
+   k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
 // Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
 const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
 const VIDEO_EXTRA = ['Kaneki', 'Puntotoni', 'Sz', 'Leg4', 'Aztra', 'Corekar', 'Darkz', 'Burrito', 'Fabz', 'Yenova', 'Billzo', 'TakionRL'];
@@ -800,6 +802,20 @@ function simApply(r, w) {
   if ((S.stage === 'cut1' || S.stage === 'cut2') && !S.intl.q.some(x => x.l === lW && x.n === W)) S.intl.q.push({ l: lW, n: W, via: S.stage }); // el ganador de un corte clasifica
   bt.res = { w, rep, gain, lg: isLg || isGp, pw: (isLg || isGp) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
 }
+function simMvp(r) { // MVP de la jornada en la liga que acaba de jugar: más puntos ganados (y mayor ventaja en los votos); empate al azar. Cobra caché.
+  const S = r.sim, li = S.order[S.li], lg = S.leagues[li], sc = {};
+  S.battles.forEach(bt => {
+    if (!bt.res) return;
+    const w = bt.res.w, W = w === 'a' ? bt.a : bt.b, c = bt.res.cnt;
+    sc[W] = (sc[W] || 0) + bt.res.pw * 10 + Math.max(0, c[w] - c[w === 'a' ? 'b' : 'a']);
+  });
+  const best = Math.max(...Object.values(sc)), top = Object.keys(sc).filter(n => sc[n] === best);
+  if (!top.length) return;
+  const n = simShuffle(top)[0];
+  lg.cache[n] += CACHE_MVP;
+  (lg.mvps = lg.mvps || []).push({ j: S.j, n });
+  S.mvp = { li, n, pay: CACHE_MVP };
+}
 function simTable(lg) {
   return lg.teams.map(t => ({ n: t, c: lg.cache[t], ...lg.st[t] })).sort((a, b) => b.pts - a.pts || b.c - a.c || a.n.localeCompare(b.n));
 }
@@ -1167,9 +1183,10 @@ function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
     if (S.needRep) { S.round = 2; S.needRep = false; return simOpenVote(r); } // ronda extra: ya no se puede votar réplica
     if (S.b < S.battles.length - 1) { S.b++; return simStartBattle(r); }
     if (S.stage === 'grp' && S.grp.gj === 5) simGrpClose(r); // último partido del grupo: se conocen los clasificados
+    if (S.stage === 'league' && !S.mk) simMvp(r); // MVP de la jornada de esta liga
     S.step = 'jEnd'; return push(r);
   }
-  if (S.step === 'jEnd') return simAdvance(r);
+  if (S.step === 'jEnd') { S.mvp = null; return simAdvance(r); }
   if (S.step === 'lres') return S.intl.grp ? simGrpBegin(r) : simIntlBegin(r, 'cut1');
   if (S.step === 'gdraw') return simGrpJornada(r);
 }
@@ -1189,13 +1206,14 @@ function simView(r) {
     id: S.id, step: S.step, j: S.j, jn: S.jn, dbl: S.dbl, fmt: S.step === 'fmt' ? { voted: Object.keys(S.fmt.votes), total: r.players.filter(p => !p.bot && p.on).length } : null, jury: S.jury, li: S.li, total: S.order.length, order: S.order,
     stage: S.stage, ko: S.ko, cutJ: S.cutJ, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, piqueCache: CACHE_PIQUE,
     rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX } : null,
+    mvp: S.step === 'jEnd' && S.stage === 'league' && !S.mk && S.mvp ? S.mvp : null,
     lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
     dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS, prop: S.dft.prop } : null,
     ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
     intl: S.intl ? { q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via, g: x.g })), champ: S.intl.champ, lgs: S.intl.lgs, nl: S.intl.nl, grp: S.intl.grp, vres: S.step === 'lres' ? S.intl.vres : null } : null,
     grp: S.grp ? { g: S.grp.g, gj: S.grp.gj, q: GRP_Q, qr: GRP_Q_RES, groups: S.grp.groups.map(G => ({ name: G.name, done: G.done, table: simGrpTable(S, G) })) } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
-    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i) })),
+    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [] })),
     winner: simWinner(r), cur: null
   };
   if (['intro', 'vote', 'reveal', 'jEnd'].includes(S.step)) {
