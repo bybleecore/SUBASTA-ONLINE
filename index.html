@@ -557,14 +557,20 @@ function render(){
 /* ---------- SIMULACIONES (ligas FMS) ---------- */
 let simAnim={id:null,t0:0,skip:false},simTimer=null,simPick=[];
 const SIM_LG_MS=1300,SIM_NAME_MS=420;
+function simLgExtras(V,li){ // efectos activos en la liga: streamer, música y jurados vetados
+  const lg=V.leagues[li],nm=id=>id==='c'?'Favorito por caché':((V.leagues.find(x=>x.owner===id)||{}).ownerName||'?');
+  const vt=(V.vetoes||[]).filter(v=>v.o===lg.owner).map(v=>nm(v.t));
+  return (lg.boostJ===V.j&&!V.mk?'<br><small>📺 Un streamer cubre esta jornada: ×'+V.streamerMult+' de caché y más visitas</small>':'')+(lg.music.length?'<br><small>🎵 Dedicados a la música (×'+V.musicMult+'): '+lg.music.map(esc).join(', ')+'</small>':'')+(vt.length?'<br><small>🚫 Jurados vetados: '+vt.map(esc).join(', ')+'</small>':'');
+}
+const fmtV=v=>v>=1e6?(v/1e6).toFixed(1).replace('.0','')+'M':v>=1000?Math.round(v/1000)+'K':String(v);
 function simTable(t,hl,o){
-  let h='<div class="tblw'+(o&&o.lgn?' lgt" style="'+lgStyle(o.lgn):'')+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  let h='<div class="tblw'+(o&&o.lgn?' lgt" style="'+lgStyle(o.lgn):'')+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th><th title="Visitas acumuladas">👁</th></tr>';
   t.forEach((x,i)=>{
     const ch=o&&o.champ===x.n,ql=o&&o.q.includes(x.n);
     const cl=ch?'rainbow':ql?'gold':(hl&&hl.includes(x.n)?'hl':'');
-    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':ql?'🎟 ':'')+(o&&o.mvp===x.n?'⭐ ':'')+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
+    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':ql?'🎟 ':'')+(o&&o.mvp===x.n?'⭐ ':'')+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td><td>'+fmtV(x.v||0)+'</td></tr>';
   });
-  return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota'+(o&&(o.champ||o.q.length)?' · 🎟 dorado: clasificado a la Gran Final'+(o.champ?' · 🌈 arcoíris: campeón de liga':''):'')+'</small>';
+  return h+'</table></div><small>👁 visitas acumuladas · V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota'+(o&&(o.champ||o.q.length)?' · 🎟 dorado: clasificado a la Gran Final'+(o.champ?' · 🌈 arcoíris: campeón de liga':''):'')+'</small>';
 }
 function simGrpHTML(V,gi){ // tabla de un grupo: dorado = clasificados a la Gran Final
   const G=V.grp.groups[gi],need=G.name==='Reservas'?V.grp.qr:V.grp.q;
@@ -659,10 +665,11 @@ function simNextLabel(V){
   return V.ko<3?KO_NAMES[V.ko+1]:'Ver el final de la temporada';
 }
 /* ---- eventos tras la jornada ---- */
-const EV_INFO={baja:['🚪','Se baja un competidor'],viral:['📈','Batalla viral'],polemica:['🔥','Polémica'],pique:['🌶','Pique a una liga contraria']};
-const EV_ORDER=['baja','viral','polemica','pique'],EV_MS=4200;
+const EV_INFO={baja:['🚪','Se baja un competidor'],viral:['📈','Batalla viral'],polemica:['🔥','Polémica'],pique:['🌶','Pique a una liga contraria'],veto:['🚫','Vetar jurado'],streamer:['📺','Un streamer cubrirá tu próxima jornada'],music:['🎵','Un freestyler piensa en dedicarse a la música']};
+const EV_COL=['#E8383D','#3b9eff','#ff9f1c','#8a3bff','#2ecc71','#e91e8c','#00b8a9'];
+const EV_ORDER=['baja','viral','polemica','pique','veto','streamer','music'],EV_MS=4200;
 let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null},rrSel=[];
-const evAngle=(k,id,p)=>{const j=((id*37)%60)-30;return (2160-(k*90+45+j))*(1-Math.pow(1-p,3))};
+const evAngle=(k,id,p)=>{const j=((id*37)%60)-30;const sl=360/EV_ORDER.length,jj=((id*37)%60-30)/60*sl*0.8;return (2160-((k+0.5)*sl+jj))*(1-Math.pow(1-p,3))};
 function evSpin(k,id){
   cancelAnimationFrame(evRaf);
   const f=()=>{
@@ -673,8 +680,10 @@ function evSpin(k,id){
   };f();
 }
 function evWheel(deg){
-  const lbl=EV_ORDER.map((t,k)=>{const a=(k*90+45)*Math.PI/180;return '<span class="wl" style="left:'+(50+33*Math.sin(a)).toFixed(1)+'%;top:'+(50-33*Math.cos(a)).toFixed(1)+'%">'+EV_INFO[t][0]+'</span>'}).join('');
-  return '<div class="wheelw"><div class="ptr">▼</div><div id="wheel" class="wheel" style="transform:rotate('+deg+'deg)">'+lbl+'</div></div>';
+  const N=EV_ORDER.length,sl=360/N;
+  const bg='conic-gradient('+EV_ORDER.map((t,k)=>EV_COL[k]+' '+(k*sl)+'deg '+((k+1)*sl)+'deg').join(',')+')';
+  const lbl=EV_ORDER.map((t,k)=>{const a=(k+0.5)*sl*Math.PI/180;return '<span class="wl" style="font-size:1.8rem;left:'+(50+34*Math.sin(a)).toFixed(1)+'%;top:'+(50-34*Math.cos(a)).toFixed(1)+'%">'+EV_INFO[t][0]+'</span>'}).join('');
+  return '<div class="wheelw"><div class="ptr">▼</div><div id="wheel" class="wheel" style="background:'+bg+';transform:rotate('+deg+'deg)">'+lbl+'</div></div>';
 }
 function simEventHTML(V,host,spin){
   const ev=V.ev,lg=V.leagues[ev.li],k=EV_ORDER.indexOf(ev.type),info=EV_INFO[ev.type],itsMe=lg.owner===myId,R=ev.res,t=esc(ev.target||'');
@@ -695,6 +704,18 @@ function simEventHTML(V,host,spin){
       h+='<p><b>'+t+'</b> ('+ev.cache+'$ de caché, '+ev.pts+' pts) ha montado una polémica en esta liga.</p>';
       h+=itsMe?'<p><b>¿Qué haces?</b></p><button class="vbtn" data-evc="keep">💸 No pagarle y mantenerlo en la liga (pierde '+ev.loss+'$ de caché)</button><button class="vbtn alt" data-evc="fire">🚪 Echarlo: entra otro con sus '+ev.pts+' puntos y '+V.cacheStart+'$ de caché</button>':wait;
     }else h+=R.keep?'<p>💸 No le pagas a <b>'+esc(R.t)+'</b>, pero lo mantienes en la liga: pierde <b>−'+R.loss+'$</b> de caché.</p>':'<p>🚪 Echas a <b>'+esc(R.t)+'</b>. <b>'+esc(R.nw)+'</b> entra en su lugar con sus puntos y '+V.cacheStart+'$ de caché.</p>';
+  }else if(ev.type==='veto'){
+    if(!ev.done){
+      h+='<p>Puedes vetar a un jurado: <b>no podrá votar en las batallas de tu liga el resto de la temporada</b> (también vale el voto del favorito por caché).</p>';
+      h+=itsMe?'<p><b>¿A quién vetas?</b></p>'+ev.opts.map(o=>'<button class="vbtn" data-evvt="'+esc(o.id)+'">🚫 '+esc(o.name)+'</button>').join(''):wait;
+    }else h+='<p>🚫 <b>'+esc(R.name)+'</b> queda vetado: no votará en las batallas de <b>'+esc(lg.ownerName)+'</b> el resto de la temporada.</p>';
+  }else if(ev.type==='streamer'){
+    h+='<p>📺 Un streamer cubrirá la <b>jornada '+R.j+'</b> de '+esc(lg.name)+': sus freestylers ganan <b>×'+R.mult+'</b> de caché y sus batallas tendrán más visitas.</p>';
+  }else if(ev.type==='music'){
+    if(!ev.done){
+      h+='<p>Elige a un freestyler de tu liga para que se dedique a la música: atraerá más visitas y cobrará <b>×'+V.musicMult+'</b> de caché el resto de la temporada.</p>';
+      h+=itsMe?lg.teams.filter(n=>!ev.mus.includes(n)).map(n=>'<button class="vbtn" data-evmu="'+esc(n)+'">🎵 '+esc(n)+'</button>').join(''):wait;
+    }else h+='<p>🎵 <b>'+esc(R.n)+'</b> se dedica a la música: ×'+V.musicMult+' de caché y más visitas el resto de la temporada.</p>';
   }else if(ev.type==='pique'){
     if(!ev.done){
       h+='<p>Puedes calentar las cosas con una liga contraria: una exhibición de uno de tus freestylers contra uno de los suyos (al azar). El ganador gana <b>+'+V.piqueCache+'$</b> de caché.</p>';
@@ -745,7 +766,7 @@ function renderSim(m,host){
   let h='';
   if(V.step!=='draw'&&V.step!=='end'&&V.cur){
     if(V.mk)h+='<div class="box lgbox" style="'+lgStyle(V.leagues[V.cur.lg].name)+'"><b>🔄 Jornada de recuperación</b> · '+lgBadge(V.leagues[V.cur.lg].name)+'<br><small>El reemplazo vuelve a jugar las batallas que ya había disputado el freestyler que se bajó.</small></div>';
-    else if(isLg)h+='<div class="box lgbox" style="'+lgStyle(V.leagues[V.cur.lg].name)+'"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+lgBadge(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+lgTh(V.leagues[li].name).f+' '+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
+    else if(isLg)h+='<div class="box lgbox" style="'+lgStyle(V.leagues[V.cur.lg].name)+'"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+lgBadge(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+lgTh(V.leagues[li].name).f+' '+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small>'+simLgExtras(V,V.cur.lg)+'</div>';
     else h+='<div class="box"><b>'+simStageTitle(V)+'</b><br><small>'+esc(simStageInfo(V))+'</small></div>';
   }
   if(V.step==='draw'){
@@ -879,7 +900,7 @@ function renderSim(m,host){
     }else{
       const W=res.w==='a'?bt.a:bt.b,Lz=res.w==='a'?bt.b:bt.a;
       h+='<div class="banner pop" style="animation-delay:'+dl+'s">🏆 '+esc(W)+' gana'+(res.rep?' tras réplica':'')+'</div>'+
-        '<p>'+(res.lg?esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>':'')+'💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b>'+
+        '<p>'+(res.lg?esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>':'')+'👁 <b>'+fmtV(res.visits)+'</b> visitas en esta batalla<br>💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b> <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 Caché de '+esc(Lz)+': <b>+'+res.vl+'$</b> <small>(visitas)</small>'+
         (V.stage==='cut1'||V.stage==='cut2'?'<br>🎟 '+esc(W)+' clasifica a la Gran Final':'')+
         (V.stage==='ko'&&V.ko===3?'<br>🌍 ¡'+esc(W)+' es campeón de la FMS Internacional! Al cerrar se lleva +'+V.intlChamp+'$ de caché':'')+'</p>';
       h+=nextBtn(cur.b<cur.battles.length-1?'Siguiente batalla':(isLg?'Cerrar la jornada':'Ver resultados'));
@@ -931,6 +952,8 @@ $('simBox').onclick=e=>{
   else if(b.dataset.rrgo!==undefined){socket.emit('simRr',b.dataset.rrgo==='1'?rrSel:[]);rrSel=[]}
   else if(b.dataset.dans!==undefined)socket.emit('simDraftAns',b.dataset.dans==='1');
   else if(b.dataset.lpick!==undefined)socket.emit('simLeaguePick',b.dataset.lpick);
+  else if(b.dataset.evvt!==undefined)socket.emit('simEvent',b.dataset.evvt);
+  else if(b.dataset.evmu!==undefined)socket.emit('simEvent',b.dataset.evmu);
   else if(b.dataset.evc)socket.emit('simEvent',b.dataset.evc==='pass'?{pass:true}:b.dataset.evc);
   else if(b.dataset.evown!==undefined){evPick.own=evPick.own===b.dataset.evown?null:b.dataset.evown;renderSim(me(),S.hostId===myId)}
   else if(b.dataset.evlg!==undefined){if(evPick.own)socket.emit('simEvent',{lg:+b.dataset.evlg,n:evPick.own})}

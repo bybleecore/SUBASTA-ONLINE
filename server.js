@@ -42,7 +42,13 @@ const CACHE_VIRAL = 500;  // caché que gana cada uno de los 2 competidores de l
 const CACHE_PIQUE = 500, CACHE_PIQUE_REP = 300; // caché del ganador de la exhibición del «pique» (directo / tras réplica)
 const POLEMICA_LOSS = 0.3; // «polémica»: si no le pagas y lo mantienes, pierde este % de su caché
 const DRAFT_ROUNDS = 1;   // rondas del draft: 1 propuesta de intercambio por jugador (hay que acordarlo con el dueño de la otra liga; si rechaza, pierdes el turno)
-const EVENTS = ['baja', 'viral', 'polemica', 'pique'];
+const EVENTS = ['baja', 'viral', 'polemica', 'pique', 'veto', 'streamer', 'music']; // el orden es el de la ruleta (el cliente usa el mismo)
+const STREAMER_MULT = 1.5, MUSIC_MULT = 1.5; // «streamer»: más caché a tu liga en la próxima jornada; «música»: más caché y visitas a un freestyler el resto de la temporada
+// Visitas: cada batalla tiene un nº de visitas al azar según lo que cobran (caché) y lo conocidos que son; las visitas también dan caché
+const VISIT_BASE = 60000;      // visitas de una batalla entre dos freestylers de 1000 de caché y fama 1
+const VISITS_PER_CACHE = 300;  // cada 300 visitas = 1$ de caché extra a repartir en la batalla
+const VISIT_SPLIT_W = 0.6;     // el ganador se lleva el 60% de ese caché por visitas y el perdedor el 40%
+const FAME_OVERRIDE = {};      // fama manual por nombre (sin bandera ni paréntesis, en minúsculas y sin tildes): {'gazir': 1.9}. Rango útil 0.5 a 2
 const KO_NAMES = ['Octavos de final', 'Cuartos de final', 'Semifinales', 'Gran final'];
 const MAXP = 10;         // máximo de jugadores por sala
 const GOAL = 5;          // personajes que hay que conseguir (= número de rondas)
@@ -725,12 +731,14 @@ function simLpAuto(r) {
   }
   push(r);
 }
-function simMakeJury(r, exclude, auto) { // 3 (o 5) jurados; los dueños de los freestylers que se enfrentan no votan; el último voto puede ser del favorito por caché
-  const S = r.sim, seats = S.jury - (auto ? 1 : 0);
-  const others = simShuffle(r.players.filter(p => !exclude.includes(p.id)));
+function simMakeJury(r, exclude, auto) { // 3 (o 5) jurados; los dueños de los freestylers que se enfrentan no votan; el último voto puede ser del favorito por caché. Los vetados por esos dueños no votan.
+  const S = r.sim;
+  const banned = (S.vetoes || []).filter(v => exclude.includes(v.owner)).map(v => v.target);
+  const useC = auto && !banned.includes('c'), seats = S.jury - (useC ? 1 : 0);
+  const others = simShuffle(r.players.filter(p => !exclude.includes(p.id) && !banned.includes(p.id)));
   const jurors = others.slice(0, seats).map(p => ({ k: 'p', id: p.id, name: p.name }));
   for (let i = jurors.length; i < seats; i++) jurors.push({ k: 'v', id: 'v' + i, name: 'Jurado invitado ' + (i - others.length + 1) });
-  if (auto) jurors.push({ k: 'c', id: 'c', name: 'Favorito por caché' });
+  if (useC) jurors.push({ k: 'c', id: 'c', name: 'Favorito por caché' });
   return jurors;
 }
 const simCacheOf = (S, bt, side) => side === 'a' ? S.leagues[bt.la].cache[bt.a] : S.leagues[bt.lb].cache[bt.b];
@@ -784,13 +792,39 @@ function simTally(r) {
   S.step = 'reveal';
   push(r);
 }
+const ELITE_RANK = new Map(POOL.e.map((n, i) => [key(n), i]));
+function simFame(n) { // lo conocido que es un nombre: en la lista élite van de más a menos conocidos; el resto sale de un valor fijo por nombre
+  const k = key(n);
+  if (k in FAME_OVERRIDE) return FAME_OVERRIDE[k];
+  if (ELITE_RANK.has(k)) return 1.8 - 1.2 * ELITE_RANK.get(k) / Math.max(1, ELITE_RANK.size - 1);
+  let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 1000;
+  return 0.6 + h / 1000;
+}
+function simMult(S, li, n) { // multiplicadores de caché: streamer cubriendo la jornada de esa liga y freestyler dedicado a la música
+  const lg = S.leagues[li]; let m = 1;
+  if (S.stage === 'league' && !S.mk && lg.boost && lg.boost.j === S.j) m *= STREAMER_MULT;
+  if ((lg.music || []).includes(n)) m *= MUSIC_MULT;
+  return m;
+}
+function simVisits(cw, cl, W, L, mW, mL, stageMul) {
+  const raw = VISIT_BASE * Math.min(6, Math.pow((cw + cl) / 2000, 0.6)) * ((simFame(W) + simFame(L)) / 2) * (0.6 + Math.random() * 0.8) * stageMul * ((mW + mL) / 2);
+  const v = Math.max(1000, Math.round(raw / 1000) * 1000);
+  const pool = Math.round(v / VISITS_PER_CACHE / 10) * 10;
+  return { v, vw: Math.round(pool * VISIT_SPLIT_W / 10) * 10, vl: Math.round(pool * (1 - VISIT_SPLIT_W) / 10) * 10 };
+}
 function simApply(r, w) {
   const S = r.sim, bt = S.battles[S.b], isLg = S.stage === 'league', isPq = S.stage === 'pique', isGp = S.stage === 'grp';
   const W = w === 'a' ? bt.a : bt.b, lW = w === 'a' ? bt.la : bt.lb, L = w === 'a' ? bt.b : bt.a, lL = w === 'a' ? bt.lb : bt.la, rep = S.round === 2;
   const cw = S.leagues[lW].cache[W], cl = S.leagues[lL].cache[L];
   let gain = isPq ? (rep ? CACHE_PIQUE_REP : CACHE_PIQUE) : isLg ? (rep ? CACHE_WIN_REP : CACHE_WIN) : (rep ? CACHE_INTL_WIN_REP : CACHE_INTL_WIN);
   if (!isPq && cl > cw) gain += Math.round((cl - cw) * CACHE_UPSET / 10) * 10; // ganar a alguien con más caché paga más
-  S.leagues[lW].cache[W] += gain;
+  const mW = simMult(S, lW, W), mL = simMult(S, lL, L);
+  gain = Math.round(gain * mW / 10) * 10;
+  const vis = simVisits(cw, cl, W, L, mW, mL, isPq ? 1.5 : isLg ? 1 : 2.5); // en la internacional y en los piques las batallas se ven más
+  const base = gain;
+  gain += vis.vw;
+  S.leagues[lW].cache[W] += gain; S.leagues[lL].cache[L] += vis.vl;
+  [[lW, W], [lL, L]].forEach(([l, n]) => { const g = S.leagues[l]; g.views = g.views || {}; g.views[n] = (g.views[n] || 0) + vis.v; });
   if (isLg) { // los puntos de la tabla solo se mueven en la liga; la internacional solo mueve caché
     const sw = S.leagues[lW].st[W], sl = S.leagues[lL].st[L];
     if (rep) { sw.pts += 2; sw.wr++; sl.pts += 1; sl.lr++; } else { sw.pts += 3; sw.w++; sl.l++; }
@@ -800,24 +834,17 @@ function simApply(r, w) {
     if (rep) { sw.pts += 2; sw.wr++; sl.pts += 1; sl.lr++; } else { sw.pts += 3; sw.w++; sl.l++; }
   }
   if ((S.stage === 'cut1' || S.stage === 'cut2') && !S.intl.q.some(x => x.l === lW && x.n === W)) S.intl.q.push({ l: lW, n: W, via: S.stage }); // el ganador de un corte clasifica
-  bt.res = { w, rep, gain, lg: isLg || isGp, pw: (isLg || isGp) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
+  bt.res = { w, rep, gain, base, visits: vis.v, vw: vis.vw, vl: vis.vl, lg: isLg || isGp, pw: (isLg || isGp) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
 }
-function simMvp(r) { // MVP de la jornada en la liga que acaba de jugar: más puntos ganados (y mayor ventaja en los votos); empate al azar. Cobra caché.
-  const S = r.sim, li = S.order[S.li], lg = S.leagues[li], sc = {};
-  S.battles.forEach(bt => {
-    if (!bt.res) return;
-    const w = bt.res.w, W = w === 'a' ? bt.a : bt.b, c = bt.res.cnt;
-    sc[W] = (sc[W] || 0) + bt.res.pw * 10 + Math.max(0, c[w] - c[w === 'a' ? 'b' : 'a']);
-  });
-  const best = Math.max(...Object.values(sc)), top = Object.keys(sc).filter(n => sc[n] === best);
-  if (!top.length) return;
-  const n = simShuffle(top)[0];
+function simMvp(r) { // MVP de la jornada: cualquiera de los 8 freestylers de la liga, al azar. Cobra caché.
+  const S = r.sim, li = S.order[S.li], lg = S.leagues[li];
+  const n = simShuffle(lg.teams)[0];
   lg.cache[n] += CACHE_MVP;
   (lg.mvps = lg.mvps || []).push({ j: S.j, n });
   S.mvp = { li, n, pay: CACHE_MVP };
 }
 function simTable(lg) {
-  return lg.teams.map(t => ({ n: t, c: lg.cache[t], ...lg.st[t] })).sort((a, b) => b.pts - a.pts || b.c - a.c || a.n.localeCompare(b.n));
+  return lg.teams.map(t => ({ n: t, c: lg.cache[t], v: (lg.views || {})[t] || 0, ...lg.st[t] })).sort((a, b) => b.pts - a.pts || b.c - a.c || a.n.localeCompare(b.n));
 }
 // ---- FMS Internacional ----
 // ---- Votación de las 4 (cortes) o 5 (grupos) mejores ligas: solo si hay más ligas que plazas ----
@@ -1063,7 +1090,7 @@ function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler
   const oldSt = lg.st[old], prev = [];
   for (const k of S.sched.slice(0, S.j).flat()) { const pr = lg.fix[k].find(q => q.includes(old)); if (pr) prev.push(pr[0] === old ? pr[1] : pr[0]); } // rivales que ya había enfrentado
   lg.teams[lg.teams.indexOf(old)] = nw;
-  delete lg.cache[old]; delete lg.st[old];
+  delete lg.cache[old]; delete lg.st[old]; if (lg.views) delete lg.views[old];
   lg.cache[nw] = CACHE_START;
   lg.st[nw] = mode === 'inherit' ? { ...oldSt } : { pts: 0, w: 0, wr: 0, lr: 0, l: 0 };
   lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === old ? nw : n))); // el nuevo ocupa su sitio en todo el calendario (el pasado solo sirve para saber a quién enfrentó cada uno)
@@ -1081,9 +1108,13 @@ function simJornadaEnd(r) { // 50% de que pase un evento (no tras la última jor
   if (S.j < S.jn && Math.random() < EVENT_P) return simEventBegin(r);
   simAfterJornada(r);
 }
+function simVetoOpts(r, lg) { // a quién puede vetar el dueño de la liga: otros jugadores y el voto por caché (que aún no haya vetado)
+  const S = r.sim, done = (S.vetoes || []).filter(v => v.owner === lg.ownerId).map(v => v.target);
+  return [...r.players.filter(p => p.id !== lg.ownerId).map(p => ({ id: p.id, name: p.name })), { id: 'c', name: 'Favorito por caché' }].filter(o => !done.includes(o.id));
+}
 function simEventBegin(r) {
   const S = r.sim, li = Math.floor(Math.random() * S.leagues.length), lg = S.leagues[li];
-  const kinds = EVENTS.filter(k => k !== 'pique' || S.leagues.length > 1);
+  const kinds = EVENTS.filter(k => (k !== 'pique' || S.leagues.length > 1) && (k !== 'veto' || simVetoOpts(r, lg).length));
   const type = simShuffle(kinds)[0];
   const q = S.intl ? S.intl.q : [];
   const free = lg.teams.filter(t => !q.some(x => x.l === li && x.n === t)); // los ya clasificados a la Gran Final no se tocan
@@ -1095,12 +1126,16 @@ function simEventBegin(r) {
     pr.forEach(n => { lg.cache[n] += CACHE_VIRAL; });
     ev.res = { a: pr[0], b: pr[1], gain: CACHE_VIRAL }; ev.done = true;
   }
+  if (type === 'veto') ev.opts = simVetoOpts(r, lg);
+  if (type === 'streamer') { lg.boost = { j: S.j + 1, mult: STREAMER_MULT }; ev.res = { j: S.j + 1, mult: STREAMER_MULT }; ev.done = true; }
   S.ev = ev; S.step = 'ev';
   simEventAuto(r);
 }
 function simEventRandomChoice(S, ev) {
   if (ev.type === 'baja') return Math.random() < 0.5 ? 'inherit' : 'redo';
   if (ev.type === 'polemica') return Math.random() < 0.5 ? 'keep' : 'fire';
+  if (ev.type === 'veto') return simShuffle(ev.opts)[0].id;
+  if (ev.type === 'music') { const lg = S.leagues[ev.li]; return simShuffle(lg.teams.filter(t => !(lg.music || []).includes(t)))[0]; }
   if (Math.random() < 0.3) return { pass: true };
   const others = S.leagues.map((_, l) => l).filter(l => l !== ev.li);
   return { lg: simShuffle(others)[0], n: simShuffle(S.leagues[ev.li].teams)[0] };
@@ -1122,6 +1157,14 @@ function simEventResolve(r, c) { // c: la decisión del jugador afectado
     if (c === 'keep') { lg.cache[t] -= ev.loss; ev.res = { t, keep: true, loss: ev.loss }; }
     else if (c === 'fire') { const x = simReplace(r, ev.li, t, 'inherit'); if (!x) return false; ev.res = { t, fired: true, nw: x.nw }; }
     else return false;
+  } else if (ev.type === 'veto') {
+    const o = ev.opts.find(x => x.id === c); if (!o) return false;
+    (S.vetoes = S.vetoes || []).push({ owner: lg.ownerId, target: o.id });
+    ev.res = { name: o.name };
+  } else if (ev.type === 'music') {
+    if (typeof c !== 'string' || !lg.teams.includes(c) || (lg.music || []).includes(c)) return false;
+    (lg.music = lg.music || []).push(c);
+    ev.res = { n: c };
   } else if (ev.type === 'pique') {
     if (c && c.pass) ev.res = { pass: true };
     else {
@@ -1204,16 +1247,16 @@ function simView(r) {
   const finLg = l => S.step === 'end' || (S.j >= S.jn && (S.stage !== 'league' || S.order.indexOf(l) < S.li || (S.order.indexOf(l) === S.li && S.step === 'jEnd')));
   const v = {
     id: S.id, step: S.step, j: S.j, jn: S.jn, dbl: S.dbl, fmt: S.step === 'fmt' ? { voted: Object.keys(S.fmt.votes), total: r.players.filter(p => !p.bot && p.on).length } : null, jury: S.jury, li: S.li, total: S.order.length, order: S.order,
-    stage: S.stage, ko: S.ko, cutJ: S.cutJ, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, piqueCache: CACHE_PIQUE,
+    stage: S.stage, ko: S.ko, cutJ: S.cutJ, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, streamerMult: STREAMER_MULT, musicMult: MUSIC_MULT, vetoes: (S.vetoes || []).map(v => ({ o: v.owner, t: v.target })), piqueCache: CACHE_PIQUE,
     rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX } : null,
     mvp: S.step === 'jEnd' && S.stage === 'league' && !S.mk && S.mvp ? S.mvp : null,
     lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
     dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS, prop: S.dft.prop } : null,
-    ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
+    ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, opts: S.ev.opts || null, mus: S.leagues[S.ev.li].music || [], j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
     intl: S.intl ? { q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via, g: x.g })), champ: S.intl.champ, lgs: S.intl.lgs, nl: S.intl.nl, grp: S.intl.grp, vres: S.step === 'lres' ? S.intl.vres : null } : null,
     grp: S.grp ? { g: S.grp.g, gj: S.grp.gj, q: GRP_Q, qr: GRP_Q_RES, groups: S.grp.groups.map(G => ({ name: G.name, done: G.done, table: simGrpTable(S, G) })) } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
-    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [] })),
+    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [], boostJ: lg.boost ? lg.boost.j : 0, music: lg.music || [] })),
     winner: simWinner(r), cur: null
   };
   if (['intro', 'vote', 'reveal', 'jEnd'].includes(S.step)) {
