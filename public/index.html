@@ -99,6 +99,17 @@ button.vbtn{display:block;width:100%;margin:8px 0}
 .wheel{position:absolute;left:0;right:0;bottom:0;height:240px;border-radius:50%;border:4px solid var(--y);background:conic-gradient(#E8383D 0 25%,#3b9eff 25% 50%,#ff9f1c 50% 75%,#8a3bff 75% 100%)}
 .wheel .wl{position:absolute;transform:translate(-50%,-50%);font-size:2.2rem;line-height:1}
 @media (prefers-reduced-motion:reduce){.glow,.chip.rainbow,.banner.rainbow,.tbl tr.rainbow td{animation:none}}
+/* estética por liga, al estilo de las ligas originales de FMS: placa oscura inclinada con los colores de cada país */
+.lgb{display:inline-flex;align-items:stretch;transform:skewX(-8deg);background:#120a2b;border-left:6px solid var(--c1);border-right:6px solid var(--c2);font-weight:900;letter-spacing:.05em;text-transform:uppercase;line-height:1.15;vertical-align:middle;margin:0 4px;box-shadow:0 0 0 1px #0008}
+.lgb b{background:var(--c1);color:var(--t);padding:2px 7px;margin-right:7px}
+.lgb span{padding:2px 9px 2px 0;color:#fff}
+.lgcard,.lgbox{background:linear-gradient(100deg,color-mix(in srgb,var(--c1) 32%,var(--card)),var(--card) 68%)}
+.lgcard{border-left:6px solid var(--c1);border-right:3px solid var(--c2)}
+.lgbox{border-top:4px solid var(--c1);border-bottom:4px solid var(--c2)}
+.lgt .tbl th{background:var(--c1);color:var(--t);border-bottom:3px solid var(--c2)}
+/* banderas en Windows (Chrome/Edge no traen glifos de banderas): fuente Twemoji solo para el rango de banderas, añadida a las dos fuentes de la página */
+@font-face{font-family:'Work Sans';font-weight:100 900;src:url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2') format('woff2');unicode-range:U+1F1E6-1F1FF,U+1F3F4,U+E0062-E007F}
+@font-face{font-family:'Bowlby One';font-weight:400;src:url('https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2') format('woff2');unicode-range:U+1F1E6-1F1FF,U+1F3F4,U+E0062-E007F}
 .hide{display:none!important}
 #err{color:#ffb4b4;min-height:1.5em;font-weight:600}
 </style>
@@ -548,7 +559,7 @@ function render(){
 let simAnim={id:null,t0:0,skip:false},simTimer=null,simPick=[];
 const SIM_LG_MS=1300,SIM_NAME_MS=420;
 function simTable(t,hl,o){
-  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  let h='<div class="tblw'+(o&&o.lgn?' lgt" style="'+lgStyle(o.lgn):'')+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
   t.forEach((x,i)=>{
     const ch=o&&o.champ===x.n,ql=o&&o.q.includes(x.n);
     const cl=ch?'rainbow':ql?'gold':(hl&&hl.includes(x.n)?'hl':'');
@@ -567,10 +578,22 @@ function simGrpHTML(V,gi){ // tabla de un grupo: dorado = clasificados a la Gran
 }
 function simTO(V,li){ // opciones de la tabla de la liga li: clasificados (dorado) y campeón si la liga ya acabó (arcoíris)
   const lg=V.leagues[li];
-  return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null};
+  return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null,lgn:lg.name};
 }
 const KO_NAMES=['Octavos de final','Cuartos de final','Semifinales','Gran final'];
-const lgShort=(V,i)=>(i==null||!V.leagues[i])?'':V.leagues[i].name.replace('FMS ','');
+const LG_THEME={ // colores de cada liga (c1 principal, c2 secundario, t = color del texto sobre c1); edítalos a tu gusto
+  'FMS España':{f:'🇪🇸',c1:'#C60B1E',c2:'#FFC400',t:'#fff'},
+  'FMS Argentina':{f:'🇦🇷',c1:'#75AADB',c2:'#F6B40E',t:'#111'},
+  'FMS México':{f:'🇲🇽',c1:'#006847',c2:'#CE1126',t:'#fff'},
+  'FMS Chile':{f:'🇨🇱',c1:'#D52B1E',c2:'#0039A6',t:'#fff'},
+  'FMS Perú':{f:'🇵🇪',c1:'#D91023',c2:'#F7F0E3',t:'#fff'},
+  'FMS Colombia':{f:'🇨🇴',c1:'#FCD116',c2:'#003893',t:'#111'},
+  'FMS Caribe':{f:'🌴',c1:'#00B4D8',c2:'#FF7F11',t:'#111'}
+};
+const lgTh=n=>LG_THEME[n]||{f:'🎤',c1:'#FFD23F',c2:'#F7F0E3',t:'#111'};
+const lgStyle=n=>{const t=lgTh(n);return '--c1:'+t.c1+';--c2:'+t.c2+';--t:'+t.t};
+const lgBadge=n=>'<span class="lgb" style="'+lgStyle(n)+'"><b>FMS</b><span>'+esc(n.replace('FMS ',''))+' '+lgTh(n).f+'</span></span>';
+const lgShort=(V,i)=>(i==null||!V.leagues[i])?'':lgTh(V.leagues[i].name).f+' '+V.leagues[i].name.replace('FMS ','');
 function simStageTitle(V){
   if(V.stage==='pique')return '🌶 Pique entre ligas · exhibición';
   if(V.stage==='grp'&&V.grp){const G=V.grp.groups[V.grp.g];return '🌍 FMS Internacional · '+(G.name==='Reservas'?'Reservas':'Grupo '+G.name)+' · jornada '+V.grp.gj+' de 5'}
@@ -591,7 +614,7 @@ function simPanel(V){ // siempre visible durante la temporada: clasificados a la
   if(!V.intl)return '';
   const q=V.intl.q,cut=V.stage==='cut1'||V.stage==='cut2';
   let h='<div class="box qpanel"><b>🎟 Clasificados a la Gran Final ('+q.length+'/16)</b><div style="margin-top:4px">'+(q.length?q.map(x=>'<span class="chip gold'+(cut||x.via==='grp'?' glow':'')+'">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+(x.g?' · '+(x.g==='Reservas'?'Reservas':'Grupo '+esc(x.g)):'')+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
-  const ch=V.leagues.filter(l=>l.fin).map(l=>'<span class="chip rainbow">🌈 '+esc(l.table[0].n)+' <small>'+esc(l.name.replace('FMS ',''))+'</small></span>');
+  const ch=V.leagues.filter(l=>l.fin).map(l=>'<span class="chip rainbow">🌈 '+esc(l.table[0].n)+' <small>'+lgTh(l.name).f+' '+esc(l.name.replace('FMS ',''))+'</small></span>');
   if(ch.length)h+='<div style="margin-top:8px"><b>🌈 Campeones de liga</b></div><div>'+ch.join('')+'</div>';
   return h+'</div>';
 }
@@ -657,7 +680,7 @@ function evWheel(deg){
 function simEventHTML(V,host,spin){
   const ev=V.ev,lg=V.leagues[ev.li],k=EV_ORDER.indexOf(ev.type),info=EV_INFO[ev.type],itsMe=lg.owner===myId,R=ev.res,t=esc(ev.target||'');
   const deg=evAngle(k,ev.id,spin?Math.min(1,(performance.now()-evAnim.t0)/EV_MS):1);
-  let h='<h2>🎲 Evento tras la jornada '+ev.j+'</h2><div class="banner">Le toca a <b>'+esc(lg.ownerName)+'</b>'+(itsMe?' (tú)':'')+' · '+esc(lg.name)+'</div>'+evWheel(deg);
+  let h='<h2>🎲 Evento tras la jornada '+ev.j+'</h2><div class="banner">Le toca a <b>'+esc(lg.ownerName)+'</b>'+(itsMe?' (tú)':'')+' · '+lgBadge(lg.name)+'</div>'+evWheel(deg);
   if(spin)return h+'<p><small>🎡 Girando la ruleta…</small></p><button class="alt" data-sim="evanim">Saltar animación</button>';
   h+='<div class="banner pop">'+info[0]+' '+info[1]+'</div>';
   const wait='<p><small>Esperando a que decida '+esc(lg.ownerName)+'…</small></p>';
@@ -678,7 +701,7 @@ function simEventHTML(V,host,spin){
       h+='<p>Puedes calentar las cosas con una liga contraria: una exhibición de uno de tus freestylers contra uno de los suyos (al azar). El ganador gana <b>+'+V.piqueCache+'$</b> de caché.</p>';
       if(itsMe){
         h+='<p><b>1. Elige a tu freestyler</b></p>'+lg.teams.map(n=>'<button class="sm'+(evPick.own===n?' sel':' alt')+'" data-evown="'+esc(n)+'">'+esc(n)+'</button>').join('');
-        h+='<p><b>2. Elige la liga rival</b></p>'+V.leagues.map((l,i)=>i===ev.li?'':'<button class="sm" data-evlg="'+i+'"'+(evPick.own?'':' disabled')+'>'+esc(l.name)+'</button>').join('');
+        h+='<p><b>2. Elige la liga rival</b></p>'+V.leagues.map((l,i)=>i===ev.li?'':'<button class="sm" data-evlg="'+i+'"'+(evPick.own?'':' disabled')+'>'+lgTh(l.name).f+' '+esc(l.name)+'</button>').join('');
         h+='<button class="vbtn alt" data-evc="pass">Mejor no: no hay pique</button>';
       }else h+=wait;
     }else h+=R.pass?'<p>🕊 Se queda todo en paz: no hay pique.</p>':'<p>🌶 ¡Pique! <b>'+esc(R.pq.a)+'</b> <small>('+esc(lgShort(V,R.pq.la))+')</small> contra <b>'+esc(R.pq.b)+'</b> <small>('+esc(lgShort(V,R.pq.lb))+')</small>.</p>';
@@ -694,7 +717,7 @@ function simDraftHTML(V,host){
   if(D.prop){const P=D.prop,toMe=P.to===myId;h+='<div class="banner pop">🤝 '+esc(nm(P.pid))+' propone: ficha a <b>'+esc(P.take)+'</b> ('+esc(V.leagues[P.b].name)+') a cambio de <b>'+esc(P.give)+'</b></div>'+(toMe?'<button data-dans="1">✅ Aceptar</button><button class="alt" data-dans="0">❌ Rechazar (pierde su turno)</button>':'<p><small>Esperando la respuesta de '+esc(nm(P.to))+'…</small></p>');}
   h+=D.done?'<div class="banner">✅ Draft terminado</div>':'<div class="banner'+(mine?' pop':'')+'">Turno '+(D.idx+1)+' de '+D.order.length+': '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
   V.leagues.forEach((lg,i)=>{
-    h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<div style="margin-top:6px">'+lg.teams.map(n=>{
+    h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<div style="margin-top:6px">'+lg.teams.map(n=>{
       if(mine&&!lock(n)){
         if(i===mi)return '<button class="sm'+(dftPick.give===n?' sel':' alt')+'" data-dgive="'+esc(n)+'">'+esc(n)+'</button>';
         return '<button class="sm'+(dftPick.take===n?' sel':' alt')+'" data-dtake="'+esc(n)+'">'+esc(n)+'</button>';
@@ -722,8 +745,8 @@ function renderSim(m,host){
   if(V.step!=='ev')evPick={own:null};
   let h='';
   if(V.step!=='draw'&&V.step!=='end'&&V.cur){
-    if(V.mk)h+='<div class="box"><b>🔄 Jornada de recuperación</b> · '+esc(V.leagues[V.cur.lg].name)+'<br><small>El reemplazo vuelve a jugar las batallas que ya había disputado el freestyler que se bajó.</small></div>';
-    else if(isLg)h+='<div class="box"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+esc(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
+    if(V.mk)h+='<div class="box lgbox" style="'+lgStyle(V.leagues[V.cur.lg].name)+'"><b>🔄 Jornada de recuperación</b> · '+lgBadge(V.leagues[V.cur.lg].name)+'<br><small>El reemplazo vuelve a jugar las batallas que ya había disputado el freestyler que se bajó.</small></div>';
+    else if(isLg)h+='<div class="box lgbox" style="'+lgStyle(V.leagues[V.cur.lg].name)+'"><b>Jornada '+V.j+' de '+V.jn+'</b> · liga '+(V.li+1)+' de '+V.total+': '+lgBadge(V.leagues[V.cur.lg].name)+'<br><small>'+V.order.map((li,i)=>(i===V.li?'▶ ':i<V.li?'✔ ':'')+lgTh(V.leagues[li].name).f+' '+esc(V.leagues[li].name)+(V.leagues[li].owner===myId?' (tú)':'')).join(' · ')+'</small></div>';
     else h+='<div class="box"><b>'+simStageTitle(V)+'</b><br><small>'+esc(simStageInfo(V))+'</small></div>';
   }
   if(V.step==='draw'){
@@ -733,7 +756,7 @@ function renderSim(m,host){
     V.leagues.forEach((lg,i)=>{
       const tl=i*SIM_LG_MS+700,showLg=e>=tl,t0=T1+i*per;
       const n=e>=t0?Math.min(lg.teams.length,Math.floor((e-t0)/SIM_NAME_MS)+1):0;
-      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'</b> · '+(showLg?'<span class="'+(e-tl<400?'pop':'')+'">'+esc(lg.name)+'</span>':'<span class="spin">🎲</span> <small>sorteando…</small>')+
+      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'</b> · '+(showLg?'<span class="'+(e-tl<400?'pop':'')+'">'+lgBadge(lg.name)+'</span>':'<span class="spin">🎲</span> <small>sorteando…</small>')+
         '<div style="margin-top:6px">'+(e>=t0?lg.teams.slice(0,n).map((t,k)=>'<span class="chip'+(k===n-1&&e-(t0+k*SIM_NAME_MS)<350&&e<total?' pop':'')+'">'+esc(t)+'</span>').join(''):'<small>'+(showLg?'esperando turno…':'')+'</small>')+'</div></div>';
     });
     if(e<total){
@@ -762,8 +785,8 @@ function renderSim(m,host){
     h+='<div class="banner'+(mine?' pop':'')+'">Turno de '+esc(nm(cur))+(mine?' (tú)':'')+'</div>';
     h+=L.all.map(n=>{
       const by=Object.keys(L.picks).find(k=>L.picks[k]===n);
-      if(by)return '<div class="pl"><span>'+esc(n)+'</span><small>✔ '+esc(nm(by))+(by===myId?' (tú)':'')+'</small></div>';
-      return mine?'<button class="vbtn" data-lpick="'+esc(n)+'">'+esc(n)+'</button>':'<div class="pl"><span>'+esc(n)+'</span><small>libre</small></div>';
+      if(by)return '<div class="pl"><span>'+lgTh(n).f+' '+esc(n)+'</span><small>✔ '+esc(nm(by))+(by===myId?' (tú)':'')+'</small></div>';
+      return mine?'<button class="vbtn" data-lpick="'+esc(n)+'">'+lgTh(n).f+' '+esc(n)+'</button>':'<div class="pl"><span>'+esc(n)+'</span><small>libre</small></div>';
     }).join('');
     if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que elija solo (al azar)</button>';
   }else if(V.step==='rr'&&V.rr){
@@ -793,7 +816,7 @@ function renderSim(m,host){
     const voted=V.lvoted.includes(myId),isVoter=V.lvoters.some(p=>p.id===myId);
     const NL=V.intl.nl;h+='<h2>🗳 Las '+NL+' mejores ligas</h2><p>Hay '+V.total+' ligas, pero a la FMS Internacional solo van '+NL+'. Vota cuáles son las '+NL+' mejores (puedes votar la tuya).</p>';
     if(isVoter&&!voted){
-      h+=V.leagues.map((lg,i)=>{const on=simPick.includes(i),c=lg.table[0];return '<button class="vbtn'+(on?'':' alt')+'" data-simpick="'+i+'">'+(on?'✔ ':'')+esc(lg.name)+(lg.owner===myId?' (tuya)':'')+' <small>· líder '+esc(c.n)+' · '+c.pts+' pts</small></button>'}).join('');
+      h+=V.leagues.map((lg,i)=>{const on=simPick.includes(i),c=lg.table[0];return '<button class="vbtn'+(on?'':' alt')+'" data-simpick="'+i+'">'+(on?'✔ ':'')+lgTh(lg.name).f+' '+esc(lg.name)+(lg.owner===myId?' (tuya)':'')+' <small>· líder '+esc(c.n)+' · '+c.pts+' pts</small></button>'}).join('');
       h+='<p><small>Elegidas: '+simPick.length+'/'+NL+'</small></p><button data-sim="lsend"'+(simPick.length===NL?'':' disabled')+'>Enviar voto</button>';
     }else if(voted){
       h+='<p>✔ Voto enviado. Esperando a los demás…</p>';
@@ -801,7 +824,7 @@ function renderSim(m,host){
     h+='<div>'+V.lvoters.map(p=>'<span class="chip">'+esc(p.name)+(V.lvoted.includes(p.id)?' ✔':' ⏳')+'</span>').join('')+'</div>';
     if(host&&V.lvoted.length<V.lvoters.length)h+='<button class="alt sm" data-sim="skip">Dar por votados (al azar) a los que faltan</button>';
   }else if(V.step==='lres'){
-    h+='<h2>🗳 Resultado de la votación</h2>'+V.intl.vres.map((x,i)=>'<div class="pl'+(x.in?' win':'')+'"><span>'+(i+1)+'. '+esc(V.leagues[x.l].name)+(V.leagues[x.l].owner===myId?' (tú)':'')+'</span><small>'+x.v+' votos · '+(x.in?'✔ va a la inter':'✖ fuera')+'</small></div>').join('');
+    h+='<h2>🗳 Resultado de la votación</h2>'+V.intl.vres.map((x,i)=>'<div class="pl'+(x.in?' win':'')+'"><span>'+(i+1)+'. '+lgTh(V.leagues[x.l].name).f+' '+esc(V.leagues[x.l].name)+(V.leagues[x.l].owner===myId?' (tú)':'')+'</span><small>'+x.v+' votos · '+(x.in?'✔ va a la inter':'✖ fuera')+'</small></div>').join('');
     h+='<p><small>Empates: gana la liga con más caché total y, si sigue el empate, el azar.</small></p>'+nextBtn(V.intl.grp?'🎲 Sorteo de grupos de la FMS Internacional':'🌍 Primer corte de la FMS Internacional');
   }else if(V.step==='gdraw'&&V.grp){
     h+='<h2>🎲 Sorteo de grupos · FMS Internacional</h2><p><small>Los 5 primeros de cada liga se reparten en 5 grupos: cada grupo tiene un freestyler de cada liga, y un 1.º, 2.º, 3.º, 4.º y 5.º. Los 6.º forman el grupo Reservas. Cada grupo se juega entero (todos contra todos, 5 jornadas de 2 batallas) antes de pasar al siguiente. Clasifican los 3 primeros de cada grupo y el 1.º de Reservas: 16 para la Gran Final.</small></p>';
@@ -814,7 +837,7 @@ function renderSim(m,host){
     const cur=V.cur;
     if(isLg){
       const lg=V.leagues[cur.lg];
-      h+='<h2>'+esc(lg.name)+(V.mk?' · jornada de recuperación':' · jornada '+V.j)+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(cur.lg===mine?' (tú)':'')+'. Estas son las '+cur.battles.length+' batallas de hoy:</p>';
+      h+='<h2>'+lgBadge(lg.name)+(V.mk?' · jornada de recuperación':' · jornada '+V.j)+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(cur.lg===mine?' (tú)':'')+'. Estas son las '+cur.battles.length+' batallas de hoy:</p>';
       cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
       h+='<h2>Jurado de la jornada</h2><div>'+simJurors(cur)+'</div>';
       if(V.j>=2||V.mk)h+='<p><small>💰 Desde la jornada 2 uno de los votos va asegurado al freestyler con más caché de cada batalla.</small></p>';
@@ -866,7 +889,7 @@ function renderSim(m,host){
     const cur=V.cur;
     if(isLg){
       const lg=V.leagues[cur.lg];
-      h+='<h2>'+esc(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+      h+='<h2>'+lgBadge(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
       if(!V.mk&&V.j===V.jn&&lg.fin)h+='<div class="banner rainbow pop">🌈 Campeón de '+esc(lg.name)+': '+esc(lg.table[0].n)+'</div>';
     }else{
       if(V.stage==='grp'&&V.grp){
@@ -889,7 +912,7 @@ function renderSim(m,host){
     h+='<h2>Campeones de liga</h2>';
     V.leagues.forEach((lg,i)=>{
       const c=lg.table[0];
-      h+='<div class="card'+(lg.owner===myId?' win':'')+'"><b>'+esc(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
+      h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
