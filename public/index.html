@@ -465,16 +465,16 @@ function render(){
 
   if(ph==='lobby'){
     $('codeBig').textContent=S.code;
-    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span>'+(p.bot&&host?'<button class="sm alt" data-kick="'+esc(p.id)+'">Quitar</button>':'')+'</div>').join('')+'<small>'+S.players.length+(S.gm==='sim'?(S.career?' / 4 jugadores (las ligas se reparten entre vosotros; solo, llevas todas)':' / 7 jugadores (una liga para cada uno)'):' / 8 jugadores')+'</small>';
+    $('plLobby').innerHTML=S.players.map(p=>'<div class="pl"><span>'+esc(p.name)+(p.id===S.hostId?' 👑':'')+(p.id===myId?' (tú)':'')+'</span>'+(p.bot&&host?'<button class="sm alt" data-kick="'+esc(p.id)+'">Quitar</button>':'')+'</div>').join('')+'<small>'+S.players.length+(S.gm==='sim'?(S.career?' / 7 jugadores (las ligas se sortean entre vosotros; quien no toque liga es jurado; solo, llevas todas)':' / 7 jugadores (una liga para cada uno)'):' / 8 jugadores')+'</small>';
     $('hostLobby').classList.toggle('hide',!host);
     $('waitHost').classList.toggle('hide',host);
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
     $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
     $('juryBox').classList.toggle('hide',S.gm!=='sim'||!!S.career);setVal($('jury'),S.jury);
-    $('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>4;
+    $('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
     $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;
-    $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>(S.career?4:7)):S.players.length<2;
+    $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
   }
 
@@ -723,7 +723,7 @@ function simNextLabel(V){
 const EV_INFO={baja:['🚪','Se baja un competidor'],viral:['📈','Batalla viral'],polemica:['🔥','Polémica'],pique:['🌶','Pique a una liga contraria'],veto:['🚫','Vetar jurado'],streamer:['📺','Un streamer cubrirá tu próxima jornada'],music:['🎵','Un freestyler piensa en dedicarse a la música']};
 const EV_COL=['#E8383D','#3b9eff','#ff9f1c','#8a3bff','#2ecc71','#e91e8c','#00b8a9'];
 const EV_ORDER=['baja','viral','polemica','pique','veto','streamer','music'],EV_MS=4200;
-let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null},rrSel=[];
+let evAnim={id:null,t0:0,skip:false},evRaf=0,evPick={own:null},dftPick={take:null,give:null},rrSel=[],jpSel=[];
 const evAngle=(k,id,p)=>{const j=((id*37)%60)-30;const sl=360/EV_ORDER.length,jj=((id*37)%60-30)/60*sl*0.8;return (2160-((k+0.5)*sl+jj))*(1-Math.pow(1-p,3))};
 function evSpin(k,id){
   cancelAnimationFrame(evRaf);
@@ -845,6 +845,7 @@ function renderSim(m,host){
   if(V.step!=='lvote')simPick=[];
   if(V.step!=='dft')dftPick={take:null,give:null};
   if(V.step!=='rr')rrSel=[];
+  if(V.step!=='jpick')jpSel=[];
   if(V.step!=='ev')evPick={own:null};
   let h='';
   if(V.step!=='draw'&&V.step!=='end'&&V.cur){
@@ -873,7 +874,7 @@ function renderSim(m,host){
           :I.grp?'<p><small>🌍 Habrá FMS Internacional con el formato de 2021: al acabar las ligas, los 5 primeros de cada una se reparten en 5 grupos (A-E) y los 6.º forman el grupo Reservas. Se juega cada grupo entero antes del siguiente; clasifican los 3 primeros de cada grupo y el 1.º de Reservas (16) y disputan la Gran Final con llaves al azar.'+(V.total>5?' Como hay más de 5 ligas, votáis las 5 mejores y solo esas van.':'')+' El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>'
           :'<p><small>🌍 Habrá FMS Internacional con cortes (formato de 2019). Tras la jornada '+V.cutJ+' los 4 primeros de cada liga juegan el primer corte; al acabar las ligas, el segundo corte; y los 16 clasificados disputan la Gran Final con llaves al azar. El campeón gana mucho caché y gana la partida quien tenga más caché.</small></p>';
       }
-      if(V.career)h+='<p><small>🏆 Modo Carrera · temporada '+V.season+' de '+V.cSeasons+': '+(V.solo?'llevas tú todas las ligas y eres el único jurado.':'las ligas se reparten entre los jugadores: cada uno lleva las suyas y los demás votan.')+(V.season<V.cSeasons?' Las ligas nuevas se suman cada temporada.':'')+'</small></p>';
+      if(V.career)h+='<p><small>🏆 Modo Carrera · temporada '+V.season+' de '+V.cSeasons+': '+(V.solo?'llevas tú todas las ligas y eres el único jurado.':'las ligas se sortean entre los jugadores: quien se lleva alguna la juega y quien no, es jurado; los demás votan.')+(V.season<V.cSeasons?' Las ligas nuevas se suman cada temporada.':'')+'</small></p>';
       h+=nextBtn('✂️ Cancelar contratos');
     }
   }else if(V.step==='fmt'&&V.fmt){
@@ -949,6 +950,15 @@ function renderSim(m,host){
     h+='<h2>🌎 World Series</h2><p><small>'+esc(simStageInfo(V))+' Jornadas: '+V.ws.jn+'. Cada batalla tiene su propio jurado.</small></p>';
     h+='<div>'+V.ws.table.map((x,k)=>'<span class="chip pop" style="animation-delay:'+(k*0.1).toFixed(2)+'s">'+esc(x.n)+' <small>'+esc(lgShort(V,x.lgi))+' · '+x.c+'$</small></span>').join('')+'</div>';
     h+=nextBtn('Empezar la jornada 1');
+  }else if(V.step==='jpick'&&V.jp&&V.cur){
+    const lg=V.leagues[V.cur.lg],J=V.jp,mine=J.pid===myId;
+    h+='<h2>'+lgBadge(lg.name)+' · jornada '+V.j+'</h2><p>Liga de <b>'+esc(lg.ownerName)+'</b>'+(mine?' (tú)':'')+'. Estas son las '+V.cur.battles.length+' batallas de hoy:</p>';
+    V.cur.battles.forEach(bt=>{h+='<div class="card">'+simVs(bt)+'</div>'});
+    if(mine){
+      h+='<h2>🧑‍⚖️ Elige tu jurado ('+jpSel.length+'/'+J.seats+')</h2><p><small>Puedes elegir jugadores, al ⭐ favorito por caché (vota por el de más caché) o 🤖 jurados invitados (bots). Tú no votas en tu liga.</small></p>';
+      h+=J.opts.map(o=>'<button class="sm'+(jpSel.includes(o.id)?' sel':' alt')+'" data-jpsel="'+esc(o.id)+'">'+(o.k==='c'?'⭐ ':o.k==='v'?'🤖 ':'')+esc(o.name)+'</button>').join('');
+      h+='<p><button data-jpgo="1"'+(jpSel.length===J.seats?'':' disabled')+'>Confirmar jurado</button></p>';
+    }else h+='<p><small>⏳ '+esc(lg.ownerName)+' está eligiendo su jurado…</small></p>'+(host?'<button class="alt sm" data-sim="skip">Que elija solo (al azar)</button>':'');
   }else if(V.step==='intro'){
     const cur=V.cur;
     if(isLg){
@@ -1053,6 +1063,8 @@ $('simBox').onclick=e=>{
   else if(b.dataset.sim==='skip')socket.emit('simSkip');
   else if(b.dataset.fmt)socket.emit('simFmt',b.dataset.fmt);
   else if(b.dataset.rrsel!==undefined){const n=b.dataset.rrsel;const rrCap=(S.sim.rr?S.sim.rr.max:2)*Math.max(1,S.sim.leagues.filter(l=>l.owner===myId).length);rrSel=rrSel.includes(n)?rrSel.filter(x=>x!==n):(rrSel.length<rrCap?[...rrSel,n]:rrSel);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.jpsel!==undefined){const id=b.dataset.jpsel;jpSel=jpSel.includes(id)?jpSel.filter(x=>x!==id):(jpSel.length<S.sim.jp.seats?[...jpSel,id]:jpSel);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.jpgo!==undefined){socket.emit('simJury',jpSel);jpSel=[]}
   else if(b.dataset.rrgo!==undefined){socket.emit('simRr',b.dataset.rrgo==='1'?rrSel:[]);rrSel=[]}
   else if(b.dataset.dans!==undefined)socket.emit('simDraftAns',b.dataset.dans==='1');
   else if(b.dataset.lpick!==undefined)socket.emit('simLeaguePick',b.dataset.lpick);
