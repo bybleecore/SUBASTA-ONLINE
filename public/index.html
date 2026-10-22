@@ -562,7 +562,7 @@ function simTable(t,hl,o){
   t.forEach((x,i)=>{
     const ch=o&&o.champ===x.n,ql=o&&o.q.includes(x.n);
     const cl=ch?'rainbow':ql?'gold':(hl&&hl.includes(x.n)?'hl':'');
-    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':ql?'🎟 ':'')+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
+    h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':ql?'🎟 ':'')+(o&&o.mvp===x.n?'⭐ ':'')+esc(x.n)+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
   });
   return h+'</table></div><small>V victoria · VR victoria tras réplica · DR derrota tras réplica · D derrota'+(o&&(o.champ||o.q.length)?' · 🎟 dorado: clasificado a la Gran Final'+(o.champ?' · 🌈 arcoíris: campeón de liga':''):'')+'</small>';
 }
@@ -577,7 +577,7 @@ function simGrpHTML(V,gi){ // tabla de un grupo: dorado = clasificados a la Gran
 }
 function simTO(V,li){ // opciones de la tabla de la liga li: clasificados (dorado) y campeón si la liga ya acabó (arcoíris)
   const lg=V.leagues[li];
-  return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null,lgn:lg.name};
+  return {q:V.intl?V.intl.q.filter(x=>x.l===li).map(x=>x.n):[],champ:lg.fin?lg.table[0].n:null,lgn:lg.name,mvp:V.mvp&&V.mvp.li===li?V.mvp.n:null};
 }
 const KO_NAMES=['Octavos de final','Cuartos de final','Semifinales','Gran final'];
 const LG_THEME={ // colores de cada liga (c1 principal, c2 secundario, t = color del texto sobre c1); edítalos a tu gusto
@@ -888,7 +888,7 @@ function renderSim(m,host){
     const cur=V.cur;
     if(isLg){
       const lg=V.leagues[cur.lg];
-      h+='<h2>'+lgBadge(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
+      h+=(V.mvp?'<div class="banner pop">⭐ MVP de la jornada: <b>'+esc(V.mvp.n)+'</b> · cobra +'+V.mvp.pay+'$ de caché</div>':'')+'<h2>'+lgBadge(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
       if(!V.mk&&V.j===V.jn&&lg.fin)h+='<div class="banner rainbow pop">🌈 Campeón de '+esc(lg.name)+': '+esc(lg.table[0].n)+'</div>';
     }else{
       if(V.stage==='grp'&&V.grp){
@@ -911,7 +911,7 @@ function renderSim(m,host){
     h+='<h2>Campeones de liga</h2>';
     V.leagues.forEach((lg,i)=>{
       const c=lg.table[0];
-      h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
+      h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+(lg.mvps.length?'<br>⭐ MVPs de jornada: '+Object.entries(lg.mvps.reduce((a,m)=>{a[m.n]=(a[m.n]||0)+1;return a},{})).map(([n,k])=>esc(n)+(k>1?' ×'+k:'')).join(', '):'')+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
     });
     h+=host?'<button data-sim="again">Jugar otra vez</button>':'<small>Esperando al anfitrión…</small>';
   }
