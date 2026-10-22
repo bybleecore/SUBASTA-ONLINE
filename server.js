@@ -93,7 +93,7 @@ const bySock = {};
 let pidSeq = 0;
 
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
-const spoken = n => n.replace(/\(.*?\)/g, '').replace('$', '').replace(/\./g, ' ').trim();
+const spoken = n => n.replace(/\(.*?\)/g, '').replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').replace('$', '').replace(/\./g, ' ').trim();
 const key = n => spoken(n).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
 const dedupe = arr => { const seen = new Set(); return arr.filter(n => { const k = key(n); if (!k || seen.has(k)) return false; seen.add(k); return true; }); };
 // Personajes del modo Blue Lock (van aquí para que server.js funcione aunque names.js sea una versión antigua)
@@ -164,7 +164,11 @@ const BLUE_NAMES = [
   'Bunny Iglesias'
 ];
 // Freestylers «élite» (alternativa a los de TWB: al empezar una partida de Freestylers una ruleta decide cuál de las dos bolsas se usa)
-const ELITE_NAMES = [
+// El país de cada freestyler va como bandera junto al nombre (la lista original usa el código entre paréntesis)
+const CC_FLAG = { ARG: 'AR', MEX: 'MX', GU: 'GT' }; // etiquetas que no son el código ISO del país
+const flagOf = c => String.fromCodePoint(...[...(CC_FLAG[c] || c)].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+const flagify = n => n.replace(/\s*(\([A-Z]+\)\s*)+$/, m => ' ' + (m.match(/\(([A-Z]+)\)/g) || []).map(x => flagOf(x.slice(1, -1))).join(''));
+const ELITE_RAW = [
   'GAZIR (ES)',
   'CHUTY (ES)',
   'DOZER (AR)',
@@ -329,6 +333,7 @@ const ELITE_NAMES = [
   'SKIPER (MX)',
   'GHOST (PE)'
 ];
+const ELITE_NAMES = ELITE_RAW.map(flagify);
 const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f), k: dedupe(NAMES.k), b: dedupe(BLUE_NAMES) };
 // Listas del modo «amar tema» (van aquí para que server.js funcione aunque names.js sea una versión antigua)
 const INSTR_NAMES = ['Kenn', 'Kenkisaurio', 'IsurMX', 'Alaxtor', 'Keyto', 'Dokkyzach', 'Proii', 'Akinno', 'Byaki', 'Natzhu', 'Elevenn'];
@@ -343,8 +348,7 @@ const poolOf = r => r.mode === 'f' ? fPool(r) : POOL[r.mode];
 const noKodigo = (lg, n) => lg.name === 'FMS Argentina' && key(n) === 'kodigo';
 // Élite: cada liga solo recibe freestylers de su país (según el país entre paréntesis del nombre); Caribe: cualquiera
 const LEAGUE_CC = { 'FMS España': 'ES', 'FMS Argentina': 'AR', 'FMS México': 'MX', 'FMS Chile': 'CL', 'FMS Perú': 'PE', 'FMS Colombia': 'CO', 'FMS Caribe': null };
-const CC_ALIAS = { ARG: 'AR', MEX: 'MX' };
-const tagsOf = n => (String(n).match(/\(([A-Z]+)\)/g) || []).map(x => x.slice(1, -1)).map(c => CC_ALIAS[c] || c);
+const tagsOf = n => (String(n).match(/[\u{1F1E6}-\u{1F1FF}]{2}/gu) || []).map(f => [...f].map(ch => String.fromCharCode(ch.codePointAt(0) - 0x1F1E6 + 65)).join('')); // países (códigos ISO) a partir de las banderas del nombre
 const eligLg = (r, lgName, n) => { if (r.fset !== 'elite') return true; const cc = LEAGUE_CC[lgName]; return !cc || tagsOf(n).includes(cc); };
 const poolFor = r => {
   if (r.gm === 'tema') {
