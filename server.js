@@ -44,6 +44,17 @@ const CACHE_PIQUE = 500, CACHE_PIQUE_REP = 300; // caché del ganador de la exhi
 const POLEMICA_LOSS = 0.3; // «polémica»: si no le pagas y lo mantienes, pierde este % de su caché
 const DRAFT_ROUNDS = 1;   // rondas del draft: 1 propuesta de intercambio por jugador (hay que acordarlo con el dueño de la otra liga; si rechaza, pierdes el turno)
 const EVENTS = ['baja', 'viral', 'polemica', 'pique', 'veto', 'streamer', 'music']; // el orden es el de la ruleta (el cliente usa el mismo)
+// ---- Modo Carrera (solo con Simulaciones): todas las temporadas de la FMS, con más ligas cada año ----
+const CAREER_LEAGUES = [ // ligas de cada temporada; las que ya existían conservan sus freestylers y su caché
+  ['FMS España'],
+  ['FMS España', 'FMS Argentina'],
+  ['FMS España', 'FMS Argentina', 'FMS México', 'FMS Chile'] // + FMS Internacional con cortes clasificatorios (como en 2019)
+];
+const CAREER_SEASONS = CAREER_LEAGUES.length;
+const CAREER_MAX_PLAYERS = 4; // las ligas se reparten entre los jugadores; si juegas solo llevas todas y eres el único jurado
+const CAREER_INTL_SEASON = 3; // desde esta temporada hay FMS Internacional (las 4 ligas, con cortes)
+const CACHE_MINI_CHAMP = 1500; // premio de caché del campeón de la mini inter (2 ligas)
+const CAREER_WS_S2 = false;   // true = en la temporada 2 de la carrera también se juega la World Series
 const STREAMER_MULT = 1.5, MUSIC_MULT = 1.5; // «streamer»: más caché a tu liga en la próxima jornada; «música»: más caché y visitas a un freestyler el resto de la temporada
 // Visitas: cada batalla tiene un nº de visitas al azar según lo que cobran (caché) y lo conocidos que son; las visitas también dan caché
 const VISIT_BASE = 60000;      // visitas de una batalla entre dos freestylers de 1000 de caché y fama 1
@@ -455,7 +466,7 @@ function view(r) {
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
     players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
-    offers: r.offers, fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
+    offers: r.offers, career: isCareer(r), fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
   };
@@ -683,7 +694,12 @@ function respondOffer(r, p, id, ok) {
 //   · DRAFT: tras el sorteo, por turnos (serpiente) cada jugador puede intercambiar un freestyler suyo por uno de otra liga (los dos quedan bloqueados).
 //   · EVENTOS: al acabar cada jornada (1 a 6) hay un 50% de que le pase uno a un jugador al azar: baja de un competidor, batalla viral, polémica o pique con otra liga.
 const simShuffle = a => a.map(x => [Math.random(), x]).sort((u, v) => u[0] - v[0]).map(x => x[1]);
-const maxPlayers = r => r.gm === 'sim' ? SIM_MAX : MAXP;
+const isCareer = r => r.gm === 'sim' && !!r.career; // Modo Carrera: solo existe dentro de Simulaciones
+const maxPlayers = r => r.gm === 'sim' ? (isCareer(r) ? CAREER_MAX_PLAYERS : SIM_MAX) : MAXP;
+const simSolo = (r, S) => !!(S && S.career && r.players.length === 1); // carrera en solitario: eres el único jurado
+function simSyncRoster(r, pid) { // la plantilla de un jugador son los freestylers de todas las ligas que lleva
+  const S = r.sim, p = find(r, pid); if (p && S) p.roster = S.leagues.filter(l => l.ownerId === pid).flatMap(l => l.teams);
+}
 function simFixture(teams) { // método del círculo: 8 participantes -> 7 jornadas, todos contra todos una sola vez
   const t = simShuffle(teams), n = t.length, rounds = [];
   for (let j = 0; j < n - 1; j++) {
@@ -719,18 +735,33 @@ function simFixKodigo(r) { // Kodigo no puede tocar la liga argentina: se cambia
   const mv = (lg, a, b) => { lg.teams[lg.teams.indexOf(a)] = b; lg.cache[b] = lg.cache[a]; lg.st[b] = lg.st[a]; delete lg.cache[a]; delete lg.st[a]; lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === a ? b : n))); };
   mv(arg, kd, swap);
   if (other) mv(other, swap, kd);
-  leagues.forEach(l => { const pl = r.players.find(p => p.id === l.ownerId); if (pl) pl.roster = l.teams.slice(); });
+  leagues.forEach(l => simSyncRoster(r, l.ownerId));
 }
 function simIntlInit(n, leagues) { // estado de la FMS Internacional según el número de jugadores (se reinicia en la temporada 2)
+  if (n === 2 && leagues.length === 2) return { q: [], champ: null, grp: false, mini: true, nl: 2, lgs: [0, 1], vres: null }; // MINI INTER: con 2 ligas, los 4 primeros de cada una juegan unos cuartos de final
   return n >= SIM_INTL_PLAYERS ? { q: [], champ: null, grp: n >= SIM_GROUP_PLAYERS, nl: n >= SIM_GROUP_PLAYERS ? 5 : 4, lgs: n === SIM_INTL_PLAYERS || n === SIM_GROUP_PLAYERS ? leagues.map((_, i) => i) : null, vres: null } : null; // q = clasificados a la Gran Final {l: liga, n: freestyler, via}
+}
+function simMakeLeague(r, lname, owner, used) { // crea una liga con 8 freestylers que no estén en otra (élite: solo de ese país)
+  const elite = r.fset === 'elite', all = fPool(r);
+  const ok = x => !used.has(key(x)) && !noKodigo({ name: lname }, x) && (!elite || eligLg(r, lname, x));
+  let teams = simShuffle(all).filter(ok).slice(0, SIM_TEAM);
+  if (teams.length < SIM_TEAM) { const have = new Set(teams.map(key)); teams = [...teams, ...simShuffle(all).filter(x => !have.has(key(x)) && !noKodigo({ name: lname }, x) && (!elite || eligLg(r, lname, x)))].slice(0, SIM_TEAM); }
+  teams.forEach(t => used.add(key(t)));
+  const cache = {}, st = {};
+  teams.forEach(t => { cache[t] = CACHE_START; st[t] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
+  return { name: lname, ownerId: owner.id, ownerName: owner.name, teams, cache, st, fix: simFixture(teams) };
 }
 function simStart(r) {
   const n = r.players.length, elite = r.fset === 'elite', all = fPool(r);
   // Élite: a cada jugador le toca una liga (país) al azar. TWB: estos nombres son provisionales, luego cada jugador elige la suya.
   const names = simShuffle(SIM_LEAGUES).slice(0, n);
-  const used = new Set(), leagues = new Array(n);
+  const career = isCareer(r), used = new Set(), leagues = new Array(n);
   const idxs = r.players.map((_, i) => i).sort((a, b) => (LEAGUE_CC[names[a]] ? 0 : 1) - (LEAGUE_CC[names[b]] ? 0 : 1)); // primero las ligas con país, Caribe (cualquiera) al final
-  idxs.forEach(i => {
+  if (career) { // Modo Carrera: la temporada 1 solo tiene la FMS España (la lleva el primer jugador; los demás son jurado)
+    leagues.length = 0;
+    CAREER_LEAGUES[0].forEach((nm, i) => leagues.push(simMakeLeague(r, nm, r.players[i % n], used)));
+    r.players.forEach(p => { p.cast = {}; p.chars = {}; });
+  } else idxs.forEach(i => {
     const p = r.players[i], lname = names[i];
     const ok = x => !used.has(key(x)) && (!elite || (eligLg(r, lname, x) && !noKodigo({ name: lname }, x)));
     let teams = simShuffle(all).filter(ok).slice(0, SIM_TEAM);
@@ -743,13 +774,14 @@ function simStart(r) {
   });
   const spare = simShuffle(all).filter(x => !used.has(key(x))); // suplentes para las bajas
   r.sim = {
-    id: Date.now(), jury: (r.jury === 5 && n >= 6) ? 5 : 3, leagues,
+    id: Date.now(), gid: Date.now() + '-' + Math.floor(Math.random() * 1e6), jury: (!career && r.jury === 5 && n >= 6) ? 5 : 3, leagues, career, histAll: [],
     order: simShuffle(leagues.map((_, i) => i)), // orden (al azar) en que se juega cada jornada de cada liga
-    stage: 'league', ko: -1, intl: simIntlInit(n, leagues), grp: null, lvotes: {},
+    stage: 'league', ko: -1, intl: career ? null : simIntlInit(n, leagues), grp: null, lvotes: {},
     j: 1, li: 0, b: 0, round: 1, step: 'fmt', fmt: { votes: {} }, dbl: false, jn: SIM_TEAM - 1, cutJ: SIM_CUT_J, sched: simSched(false), battles: [], jurors: [], votes: {}, last: null, needRep: false,
     mk: null, ev: null, evSeq: 0, dft: null, spare, season: 1, kp: null, ws: null, keep: [], hist: null,
-    lp: elite ? null : { order: simShuffle(r.players.map(p => p.id)), idx: 0, picks: {} }
+    lp: (elite || career) ? null : { order: simShuffle(r.players.map(p => p.id)), idx: 0, picks: {} }
   };
+  if (career) r.players.forEach(p => simSyncRoster(r, p.id));
   r.phase = 'sim';
   simFmtAuto(r);
 }
@@ -776,7 +808,8 @@ function simLpAuto(r) {
   }
   push(r);
 }
-function simMakeJury(r, exclude, auto) { // 3 (o 5) jurados; los dueños de los freestylers que se enfrentan no votan; el último voto puede ser del favorito por caché. Los vetados por esos dueños no votan.
+function simMakeJury(r, exclude, auto) {
+  if (simSolo(r, r.sim)) { const p = r.players[0]; return [{ k: 'p', id: p.id, name: p.name }]; } // carrera en solitario: tú eres el único jurado // 3 (o 5) jurados; los dueños de los freestylers que se enfrentan no votan; el último voto puede ser del favorito por caché. Los vetados por esos dueños no votan.
   const S = r.sim;
   const banned = (S.vetoes || []).filter(v => exclude.includes(v.owner)).map(v => v.target);
   const useC = auto && !banned.includes('c'), seats = S.jury - (useC ? 1 : 0);
@@ -1004,10 +1037,11 @@ function simKoPairs(q) { // sorteo de octavos: se evita (si se puede) cruzar a d
   const p = []; for (let i = 0; i < s.length; i += 2) p.push([s[i], s[i + 1]]);
   return p;
 }
-function simKoBegin(r, k) { // k: 0 octavos, 1 cuartos, 2 semis, 3 final
-  const S = r.sim; let pairs;
-  if (k === 0 && !(S.kp && S.kp.built)) return simKoPickBegin(r); // las llaves de octavos se eligen una a una (ver simKoPickBegin)
-  if (k === 0) pairs = S.kp.slots.map(sl => [sl[0], sl[1]]);
+const simKo0 = S => S.intl && S.intl.mini ? 1 : 0; // ronda con la que empieza el cuadro: octavos (0) o, en la mini inter, cuartos (1)
+function simKoBegin(r, k) { // k: 0 = primera ronda del cuadro; luego 1 cuartos, 2 semis, 3 final
+  const S = r.sim; let pairs; const first = k === 0; if (first) k = simKo0(S);
+  if (first && !(S.kp && S.kp.built)) return simKoPickBegin(r); // las llaves de octavos se eligen una a una (ver simKoPickBegin)
+  if (first) pairs = S.kp.slots.map(sl => [sl[0], sl[1]]);
   else {
     const prev = S.battles.map(bt => bt.res.w === 'a' ? { l: bt.la, n: bt.a } : { l: bt.lb, n: bt.b }); // ganadores en el orden del cuadro
     pairs = []; for (let i = 0; i < prev.length; i += 2) pairs.push([prev[i], prev[i + 1]]);
@@ -1021,8 +1055,9 @@ function simFinish(r) { // fin: el campeón de la internacional se lleva el prem
   const S = r.sim;
   if (S.intl && S.stage === 'ko' && S.ko === 3 && S.battles[0] && S.battles[0].res) {
     const bt = S.battles[0], w = bt.res.w, l = w === 'a' ? bt.la : bt.lb, n = w === 'a' ? bt.a : bt.b;
-    S.leagues[l].cache[n] += CACHE_INTL_CHAMP;
-    S.intl.champ = { l, n, bonus: CACHE_INTL_CHAMP };
+    const bonus = S.intl.mini ? CACHE_MINI_CHAMP : CACHE_INTL_CHAMP;
+    S.leagues[l].cache[n] += bonus;
+    S.intl.champ = { l, n, bonus };
   }
   S.step = 'end'; push(r);
 }
@@ -1032,8 +1067,15 @@ function simNextJornada(r) { // la liga sigue con la siguiente jornada; si ya no
   if (S.season === 2 && S.ws && !S.ws.done) return simWsBegin(r); // temporada 2: tras las ligas se juega la World Series
   simAfterLeagues(r);
 }
+function simMiniBegin(r) { // mini inter (2 ligas): clasifican los 4 primeros de cada tabla y se juegan unos cuartos de final
+  const S = r.sim, I = S.intl; I.q = [];
+  I.lgs.forEach(l => simTable(S.leagues[l]).slice(0, 4).forEach(x => I.q.push({ l, n: x.n, via: 'mini' })));
+  S.stage = 'ko'; S.ko = simKo0(S); S.step = 'mini'; S.battles = []; S.jurors = [];
+  push(r);
+}
 function simAfterLeagues(r) { // ligas (y World Series) terminadas: segundo corte / grupos de la internacional, o fin de la temporada
   const S = r.sim;
+  if (S.intl && S.intl.mini) return simMiniBegin(r);
   if (S.intl) return S.intl.grp ? (S.intl.lgs ? simGrpBegin(r) : simLeagueBegin(r)) : simIntlBegin(r, 'cut2');
   S.stage = 'league'; S.step = 'end'; push(r);
 }
@@ -1047,7 +1089,7 @@ function simKpOpts(S, x) { // batallas con algún hueco libre; si se puede, sin 
 function simKoPickBegin(r) {
   const S = r.sim, q = simShuffle(S.intl.q.map(x => ({ l: x.l, n: x.n })));
   S.kp = { order: q, idx: 0, slots: Array.from({ length: Math.floor(q.length / 2) }, () => [null, null]), done: false, built: false, log: [] };
-  S.stage = 'ko'; S.ko = 0; S.step = 'kopick'; S.battles = []; S.jurors = [];
+  S.stage = 'ko'; S.ko = simKo0(S); S.step = 'kopick'; S.battles = []; S.jurors = [];
   simKoPickAuto(r);
 }
 function simKoPlace(r, slot) { // el clasificado que ha salido entra en la batalla «slot»
@@ -1077,25 +1119,49 @@ function simKoPickAuto(r) { // avanza solo hasta que le toca elegir a una person
   push(r);
 }
 // ---- Temporada 2 ----
-function simSeason2Begin(r) {
-  const S = r.sim; if (!S || S.step !== 'end' || S.season !== 1) return;
+function simHofEntry(r) { // Hall of Fame de la temporada: podio (1.º, 2.º y 3.º) de cada liga, finalistas de la internacional y campeón de la World Series
+  const S = r.sim, nm = l => S.leagues[l] ? S.leagues[l].name : '';
+  const pod = S.leagues.map(lg => ({ name: lg.name, p: simTable(lg).slice(0, 3).map(x => ({ n: x.n, pts: x.pts, c: x.c })) }));
+  let ic = null;
+  if (S.intl && S.intl.champ) {
+    const ch = S.intl.champ, bt = S.battles[0]; let second = null;
+    if (S.stage === 'ko' && S.ko === 3 && bt && bt.res) second = bt.res.w === 'a' ? { n: bt.b, lg: nm(bt.lb) } : { n: bt.a, lg: nm(bt.la) };
+    ic = { champ: { n: ch.n, lg: nm(ch.l) }, second, mini: !!S.intl.mini };
+  }
+  const wsc = S.ws && S.ws.champ ? { n: S.ws.champ.n, lg: nm(S.ws.champ.l) } : null;
+  return { gid: S.gid, season: S.season, career: !!S.career, pod, ic, wsc };
+}
+function simCareerGrow(r) { // Modo Carrera: al empezar la temporada se suman las ligas nuevas (las anteriores siguen con los suyos)
+  const S = r.sim, names = CAREER_LEAGUES[Math.min(S.season, CAREER_SEASONS) - 1];
+  const used = new Set(S.leagues.flatMap(l => l.teams).map(key));
+  names.forEach((nm, i) => {
+    if (S.leagues.some(l => l.name === nm)) return;
+    S.leagues.push(simMakeLeague(r, nm, r.players[i % r.players.length], used)); // reparto: España al 1.º, Argentina al 2.º, México al 3.º, Chile al 4.º (y vuelta al 1.º si hay menos)
+  });
+  S.spare = (S.spare || []).filter(x => !used.has(key(x)));
+  r.players.forEach(p => simSyncRoster(r, p.id));
+}
+function simSeason2Begin(r) { // abre la siguiente temporada: la 2 de siempre o, en el Modo Carrera, la 2 y la 3
+  const S = r.sim; if (!S || S.step !== 'end' || (S.career ? S.season >= CAREER_SEASONS : S.season !== 1)) return;
   const champs = S.leagues.map(lg => simTable(lg)[0].n), ic = S.intl && S.intl.champ ? S.intl.champ : null, w = simWinner(r);
   S.keep = [...new Set([...champs, ...(ic ? [ic.n] : [])])]; // los campeones (de liga y de la internacional) se mantienen: no se pueden despedir ni draftear
   S.hist = { winner: w ? { ownerName: w.ownerName, n: w.n, c: w.c, league: w.league } : null, champs: S.leagues.map((lg, l) => ({ l, n: champs[l] })), intl: ic ? { l: ic.l, n: ic.n } : null };
-  S.season = 2; S.id = Date.now();
+  (S.histAll = S.histAll || []).push({ ...simHofEntry(r), ...S.hist });
+  S.season++; S.id = Date.now();
+  if (S.career) simCareerGrow(r);
   S.leagues.forEach(lg => { // nueva temporada: tablas y calendario a cero; el caché, las visitas y la música se conservan
     lg.st = {}; lg.teams.forEach(t => { lg.st[t] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
     lg.fix = simFixture(lg.teams); lg.mvps = []; lg.boost = null; lg.makeup = null;
   });
   S.order = simShuffle(S.leagues.map((_, i) => i));
-  S.stage = 'league'; S.ko = -1; S.intl = simIntlInit(r.players.length, S.leagues); S.grp = null; S.lvotes = {};
+  S.stage = 'league'; S.ko = -1; S.intl = simIntlInit(S.career ? (S.season >= CAREER_INTL_SEASON ? SIM_INTL_PLAYERS : S.leagues.length === 2 ? 2 : 0) : r.players.length, S.leagues); S.grp = null; S.lvotes = {};
   S.j = 1; S.li = 0; S.b = 0; S.round = 1; S.battles = []; S.jurors = []; S.votes = {}; S.last = null; S.needRep = false;
   S.mk = null; S.ev = null; S.dft = null; S.rr = null; S.kp = null; S.ws = null; S.vetoes = []; S.mvp = null;
   simRrBegin(r); // primero los despidos (hasta 2) y luego el draft (1 intercambio)
 }
 function simSeasonGo(r) { // todo listo para jugar la temporada: en la 2 se fija la World Series con los 10 mejor pagados tras despidos y draft
   const S = r.sim;
-  if (S.season === 2) simWsPrepare(r);
+  if (S.season === 2 && (!S.career || CAREER_WS_S2)) simWsPrepare(r);
   simBegin(r);
 }
 function simWsPrepare(r) {
@@ -1133,16 +1199,16 @@ function simWsClose(r) { // acaba la World Series: el campeón de la tabla cobra
 // ---- Draft entre ligas ----
 const simOwnLg = (S, pid) => S.leagues.findIndex(l => l.ownerId === pid);
 function simDraftBegin(r) {
-  const S = r.sim, ids = simShuffle(r.players.map(p => p.id)), order = [];
+  const S = r.sim, ids = simShuffle([...new Set(S.leagues.map(l => l.ownerId))].filter(id => find(r, id))), order = []; // solo juegan el draft quienes llevan alguna liga
   for (let k = 0; k < DRAFT_ROUNDS; k++) (k % 2 ? ids.slice().reverse() : ids).forEach(id => order.push(id)); // serpiente
-  S.dft = { order, idx: 0, locked: S.season === 2 ? S.keep.slice() : [], log: [], done: false };
+  S.dft = { order, idx: 0, locked: S.season >= 2 ? S.keep.slice() : [], log: [], done: false };
   S.step = 'dft';
   simDraftAuto(r);
 }
-function simDraftSwap(r, pid, take, give) { // el jugador cede «give» (de su liga) y ficha «take» (de otra liga)
-  const S = r.sim, D = S.dft, a = simOwnLg(S, pid); if (a < 0) return false;
-  const b = S.leagues.findIndex((lg, l) => l !== a && lg.teams.includes(take));
-  if (b < 0 || !S.leagues[a].teams.includes(give) || D.locked.includes(take) || D.locked.includes(give)) return false;
+function simDraftSwap(r, pid, take, give) { // el jugador cede «give» (de una liga suya) y ficha «take» (de una liga que no lleva él)
+  const S = r.sim, D = S.dft, a = S.leagues.findIndex(lg => lg.ownerId === pid && lg.teams.includes(give)); if (a < 0) return false;
+  const b = S.leagues.findIndex(lg => lg.ownerId !== pid && lg.teams.includes(take));
+  if (b < 0 || D.locked.includes(take) || D.locked.includes(give)) return false;
   const A = S.leagues[a], B = S.leagues[b];
   if (noKodigo(A, take) || noKodigo(B, give)) return false;
   A.teams[A.teams.indexOf(give)] = take; B.teams[B.teams.indexOf(take)] = give;
@@ -1151,17 +1217,15 @@ function simDraftSwap(r, pid, take, give) { // el jugador cede «give» (de su l
   A.cache[take] = ct; A.st[take] = stt; B.cache[give] = cg; B.st[give] = sg;
   const sub = (lg, x, y) => { lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === x ? y : n))); };
   sub(A, give, take); sub(B, take, give);
-  const pa = find(r, A.ownerId), pb = find(r, B.ownerId);
-  if (pa) pa.roster = A.teams.slice();
-  if (pb) pb.roster = B.teams.slice();
+  simSyncRoster(r, A.ownerId); simSyncRoster(r, B.ownerId);
   D.locked.push(take, give);
   D.log.push({ pid, take, give, from: b, to: a });
   return true;
 }
 function simDraftPropose(r, pid, take, give) { // el intercambio queda pendiente de que lo acepte el dueño de la otra liga
-  const S = r.sim, D = S.dft, a = simOwnLg(S, pid); if (a < 0) return false;
-  const b = S.leagues.findIndex((lg, l) => l !== a && lg.teams.includes(take));
-  if (b < 0 || !S.leagues[a].teams.includes(give) || D.locked.includes(take) || D.locked.includes(give)) return false;
+  const S = r.sim, D = S.dft, a = S.leagues.findIndex(lg => lg.ownerId === pid && lg.teams.includes(give)); if (a < 0) return false;
+  const b = S.leagues.findIndex(lg => lg.ownerId !== pid && lg.teams.includes(take));
+  if (b < 0 || D.locked.includes(take) || D.locked.includes(give)) return false;
   if (noKodigo(S.leagues[a], take) || noKodigo(S.leagues[b], give)) return false;
   D.prop = { pid, take, give, to: S.leagues[b].ownerId, b };
   return true;
@@ -1175,8 +1239,8 @@ function simDraftResolve(r, ok) { // responde el dueño (o el azar): si rechaza,
 function simDraftRandom(r, pid) { // turno automático (bots, desconectados o «dar por decidido»): propone un intercambio al azar o pasa
   const S = r.sim, D = S.dft, me = simOwnLg(S, pid);
   if (me >= 0 && Math.random() < 0.7) {
-    const mine = S.leagues[me].teams.filter(t => !D.locked.includes(t)), others = [];
-    S.leagues.forEach((lg, l) => { if (l !== me) lg.teams.forEach(t => { if (!D.locked.includes(t)) others.push(t); }); });
+    const mine = S.leagues.filter(lg => lg.ownerId === pid).flatMap(lg => lg.teams).filter(t => !D.locked.includes(t)), others = [];
+    S.leagues.forEach(lg => { if (lg.ownerId !== pid) lg.teams.forEach(t => { if (!D.locked.includes(t)) others.push(t); }); });
     if (mine.length && others.length && simDraftPropose(r, pid, simShuffle(others)[0], simShuffle(mine)[0])) return; // queda pendiente de respuesta
   }
   D.log.push({ pid, pass: true });
@@ -1211,7 +1275,7 @@ function simRrBegin(r) {
 function simRrAuto(r) { // bots y desconectados se quedan con los suyos; cuando todos han decidido se aplica
   const S = r.sim; if (!S || S.step !== 'rr') return;
   const R = S.rr;
-  r.players.forEach(p => { if (!R.done[p.id] && (p.bot || !p.on)) R.done[p.id] = true; });
+  r.players.forEach(p => { if (!R.done[p.id] && (p.bot || !p.on || !S.leagues.some(l => l.ownerId === p.id))) R.done[p.id] = true; }); // bots, desconectados y quien no lleva ninguna liga
   if (!R.applied && r.players.every(p => R.done[p.id])) {
     R.applied = true;
     S.leagues.forEach((lg, li) => {
@@ -1245,13 +1309,13 @@ function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler
   lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === old ? nw : n))); // el nuevo ocupa su sitio en todo el calendario (el pasado solo sirve para saber a quién enfrentó cada uno)
   if (lg.music) lg.music = lg.music.filter(x => x !== old);
   if (S.ws) simWsRename(S, old, nw);
-  const p = find(r, lg.ownerId); if (p) p.roster = lg.teams.slice();
+  simSyncRoster(r, lg.ownerId);
   if (mode === 'redo' && prev.length) lg.makeup = prev.map(o => [nw, o]);
   return { nw, redo: mode === 'redo' ? prev.length : 0 };
 }
 function simAfterJornada(r) { // lo que viene al acabar la jornada en todas las ligas (y su evento, si lo hubo)
   const S = r.sim; S.mk = null; S.ev = null;
-  if (S.intl && !S.intl.grp && S.j === S.cutJ) return S.intl.lgs ? simIntlBegin(r, 'cut1') : simLeagueBegin(r); // en el formato de grupos no hay cortes a mitad de liga
+  if (S.intl && !S.intl.grp && !S.intl.mini && S.j === S.cutJ) return S.intl.lgs ? simIntlBegin(r, 'cut1') : simLeagueBegin(r); // en el formato de grupos no hay cortes a mitad de liga
   return simNextJornada(r);
 }
 function simJornadaEnd(r) { // 50% de que pase un evento (no tras la última jornada: ya no quedan batallas que afectar)
@@ -1265,7 +1329,7 @@ function simVetoOpts(r, lg) { // a quién puede vetar el dueño de la liga: otro
 }
 function simEventBegin(r) {
   const S = r.sim, li = Math.floor(Math.random() * S.leagues.length), lg = S.leagues[li];
-  const kinds = EVENTS.filter(k => (k !== 'pique' || S.leagues.length > 1) && (k !== 'veto' || simVetoOpts(r, lg).length));
+  const kinds = EVENTS.filter(k => (k !== 'pique' || S.leagues.length > 1) && (k !== 'veto' || (simVetoOpts(r, lg).length && !simSolo(r, S))));
   const type = simShuffle(kinds)[0];
   const q = S.intl ? S.intl.q : [];
   const free = lg.teams.filter(t => !q.some(x => x.l === li && x.n === t)); // los ya clasificados a la Gran Final no se tocan
@@ -1373,10 +1437,11 @@ function simAdvance(r) { // desde la pantalla de cierre (jEnd) a lo siguiente
 function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
   const S = r.sim; if (!S) return;
   if (S.step === 'draw') return simRrBegin(r);
-  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (S.leagues.length > 1) simDraftBegin(r); else simSeasonGo(r); } return; }
+  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (new Set(S.leagues.map(l => l.ownerId)).size > 1) simDraftBegin(r); else simSeasonGo(r); } return; } // el draft necesita al menos 2 dueños distintos
   if (S.step === 'dft') { if (S.dft && S.dft.done) simSeasonGo(r); return; }
   if (S.step === 'kopick') { if (S.kp && S.kp.done) { S.kp.built = true; simKoBegin(r, 0); } return; }
   if (S.step === 'wsdraw') return simWsJornada(r);
+  if (S.step === 'mini') return simKoPickBegin(r); // los 8 clasificados eligen su llave de cuartos
   if (S.step === 'ev') return simEventNext(r);
   if (S.step === 'intro') { S.b = 0; return simStartBattle(r); }
   if (S.step === 'reveal') {
@@ -1405,17 +1470,19 @@ function simView(r) {
   const finLg = l => S.step === 'end' || (S.j >= S.jn && (S.stage !== 'league' || S.order.indexOf(l) < S.li || (S.order.indexOf(l) === S.li && S.step === 'jEnd')));
   const v = {
     id: S.id, step: S.step, j: S.j, jn: S.jn, dbl: S.dbl, fmt: S.step === 'fmt' ? { voted: Object.keys(S.fmt.votes), total: r.players.filter(p => !p.bot && p.on).length } : null, jury: S.jury, li: S.li, total: S.order.length, order: S.order,
-    stage: S.stage, ko: S.ko, cutJ: S.cutJ, intlChamp: CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, streamerMult: STREAMER_MULT, musicMult: MUSIC_MULT, vetoes: (S.vetoes || []).map(v => ({ o: v.owner, t: v.target })), piqueCache: CACHE_PIQUE,
-    rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX } : null,
+    stage: S.stage, ko: S.ko, ko0: simKo0(S), cutJ: S.cutJ, intlChamp: S.intl && S.intl.mini ? CACHE_MINI_CHAMP : CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, streamerMult: STREAMER_MULT, musicMult: MUSIC_MULT, vetoes: (S.vetoes || []).map(v => ({ o: v.owner, t: v.target })), piqueCache: CACHE_PIQUE,
+    rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX, total: r.players.length } : null,
+    career: !!S.career, cSeasons: CAREER_SEASONS, solo: simSolo(r, S), owners: new Set(S.leagues.map(l => l.ownerId)).size, histAll: S.histAll || [], hofNow: S.step === 'end' ? simHofEntry(r) : null,
+    cnext: S.career && S.step === 'end' && S.season < CAREER_SEASONS ? { season: S.season + 1, add: CAREER_LEAGUES[S.season].filter(n => !S.leagues.some(l => l.name === n)), intl: S.season + 1 >= CAREER_INTL_SEASON, mini: S.season + 1 < CAREER_INTL_SEASON && CAREER_LEAGUES[S.season].length === 2 } : null,
     mvp: S.step === 'jEnd' && S.stage === 'league' && !S.mk && S.mvp ? S.mvp : null,
     lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
     dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS, prop: S.dft.prop } : null,
     ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, opts: S.ev.opts || null, mus: S.leagues[S.ev.li].music || [], j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
-    intl: S.intl ? { q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via, g: x.g })), champ: S.intl.champ, lgs: S.intl.lgs, nl: S.intl.nl, grp: S.intl.grp, vres: S.step === 'lres' ? S.intl.vres : null } : null,
+    intl: S.intl ? { mini: !!S.intl.mini, q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via, g: x.g })), champ: S.intl.champ, lgs: S.intl.lgs, nl: S.intl.nl, grp: S.intl.grp, vres: S.step === 'lres' ? S.intl.vres : null } : null,
     grp: S.grp ? { g: S.grp.g, gj: S.grp.gj, q: GRP_Q, qr: GRP_Q_RES, groups: S.grp.groups.map(G => ({ name: G.name, done: G.done, table: simGrpTable(S, G) })) } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
     leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [], boostJ: lg.boost ? lg.boost.j : 0, music: lg.music || [] })),
-    season: S.season, keep: S.season === 2 ? S.keep : [], hist: S.hist,
+    season: S.season, keep: S.season >= 2 ? S.keep : [], hist: S.hist,
     kp: S.step === 'kopick' && S.kp ? (() => {
       const K = S.kp, cur = K.done ? null : K.order[K.idx], cc = x => x ? { l: x.l, n: x.n, c: S.leagues[x.l].cache[x.n] } : null;
       return { idx: K.idx, total: K.order.length, done: K.done, cur: cc(cur), pid: cur ? S.leagues[cur.l].ownerId : null, opts: cur ? simKpOpts(S, cur) : [], slots: K.slots.map(sl => sl.map(cc)),
@@ -1517,6 +1584,7 @@ io.on('connection', s => {
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
     if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus', 'best', 'xi', 'sim'].includes(d.gm)) r.gm = d.gm;
     if (r.phase === 'lobby' && (d.jury === 3 || d.jury === 5)) r.jury = d.jury;
+    if (r.phase === 'lobby' && typeof d.career === 'boolean') r.career = d.career && r.players.length <= CAREER_MAX_PLAYERS; // Modo Carrera (solo con Simulaciones)
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
     if ((r.gm === 'versus' || r.gm === 'sim') && r.mode !== 'f') r.gm = 'std'; // versus y simulaciones solo existen con Freestylers
     if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } // Blue Lock: «armar 11» o «armar el mejor»
@@ -1535,7 +1603,7 @@ io.on('connection', s => {
       r.fsetId = Date.now();
       if (prev !== r.fset) r.used.clear();
     }
-    if (r.gm === 'sim') { if (r.players.length > SIM_MAX) return; return simStart(r); } // simulaciones: sin subasta
+    if (r.gm === 'sim') { if (r.players.length > maxPlayers(r)) return; return simStart(r); } // simulaciones: sin subasta
     if (r.mode === 'b') { if (r.gm !== 'xi' && r.gm !== 'best') r.gm = 'xi'; } else if (r.gm === 'xi') r.gm = 'std';
     r.theme = r.gm === 'cast' ? THEMES[Math.floor(Math.random() * THEMES.length)]
       : r.gm === 'best' ? { name: 'ARMAR EL MEJOR', roles: BEST[r.mode].map(c => [Math.random(), c]).sort((a, b) => a[0] - b[0]).slice(0, BEST_PICK).map(x => x[1]).sort((a, b) => BEST[r.mode].indexOf(a) - BEST[r.mode].indexOf(b)) }
@@ -1777,8 +1845,9 @@ io.on('connection', s => {
   s.on('simRr', cancel => { // cancelar contratos antes del draft
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'rr') return;
     const R = r.sim.rr; if (!R || R.done[p.id]) return;
-    const lg = r.sim.leagues.find(l => l.ownerId === p.id); if (!lg) return;
-    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => lg.teams.includes(n) && !(r.sim.keep || []).includes(n)).slice(0, RR_MAX);
+    const mine = r.sim.leagues.filter(l => l.ownerId === p.id); if (!mine.length) return;
+    const teams = mine.flatMap(l => l.teams); // hasta RR_MAX despidos por cada liga que lleves
+    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => teams.includes(n) && !(r.sim.keep || []).includes(n)).slice(0, RR_MAX * mine.length);
     R.sel[p.id] = list; R.done[p.id] = true;
     simRrAuto(r);
   });
@@ -1789,7 +1858,7 @@ io.on('connection', s => {
     if (!Number.isInteger(slot) || !simKoPlace(r, slot)) return;
     simKoPickAuto(r);
   });
-  s.on('simSeason2', () => { // el anfitrión abre la temporada 2 al acabar la 1
+  s.on('simSeason2', () => { // el anfitrión abre la siguiente temporada al acabar la actual (la 2; en el Modo Carrera también la 3)
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
     simSeason2Begin(r);
   });
