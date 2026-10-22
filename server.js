@@ -36,6 +36,7 @@ const SIM_INTL_PLAYERS = 4; // con exactamente 4 jugadores (4 ligas) se juega la
 const SIM_CUT_J_DBL = 2;  // lo mismo con jornada doble (3 batallas jugadas por freestyler, igual que tras la jornada 3 normal)
 const SIM_CUT_J = 3;        // el primer corte internacional se juega al terminar esta jornada en todas las ligas
 const CACHE_INTL_WIN = 400, CACHE_INTL_WIN_REP = 200, CACHE_INTL_CHAMP = 3000; // caché en la internacional: por victoria, tras réplica y premio gordo al campeón
+const WS_SIZE = 10, CACHE_WS_CHAMP = 1500; // Temporada 2: la World Series reúne a los 10 freestylers mejor pagados (caché) de todas las ligas; su campeón se lleva este premio
 const EVENT_P = 1;        // probabilidad de que haya un evento al terminar una jornada (1 = siempre; no hay tras la última jornada)
 const CACHE_MVP = 400;    // pago al MVP de cada jornada de cada liga (una victoria vale 300)
 const CACHE_VIRAL = 500;  // caché que gana cada uno de los 2 competidores de la «batalla viral»
@@ -48,7 +49,48 @@ const STREAMER_MULT = 1.5, MUSIC_MULT = 1.5; // «streamer»: más caché a tu l
 const VISIT_BASE = 60000;      // visitas de una batalla entre dos freestylers de 1000 de caché y fama 1
 const VISITS_PER_CACHE = 300;  // cada 300 visitas = 1$ de caché extra a repartir en la batalla
 const VISIT_SPLIT_W = 0.6;     // el ganador se lleva el 60% de ese caché por visitas y el perdedor el 40%
-const FAME_OVERRIDE = {};      // fama manual por nombre (sin bandera ni paréntesis, en minúsculas y sin tildes): {'gazir': 1.9}. Rango útil 0.5 a 2
+// Fama manual por nombre (sin bandera ni paréntesis, en minúsculas, sin tildes ni espacios: 'Lit Killah' -> 'litkillah'). Rango útil 0.5 a 2.
+// La fama multiplica las visitas de las batallas (media de los dos). Lo que no está aquí sale de su puesto en la lista élite (1.8 el primero, 0.6 el último);
+// los nombres que no están en la lista élite tienen fama baja por defecto (0.6 a 1.0), porque si no son conocidos atraen menos gente.
+const FAME_OVERRIDE = {
+  // Dedicados a la música (exfreestylers con carrera de artista): atraen a un público enorme fuera del freestyle
+  duki: 2.0,        // primer artista latino en llenar el Santiago Bernabéu; empezó en las batallas del Quinto Escalón
+  trueno: 1.9,      // nominado a los Latin Grammy, colabora con Duki, Bizarrap y Nicki Nicole
+  gotti: 1.9,       // Tiago PZK (su alter ego es GOTTI): campeón de BDM y artista con éxitos internacionales
+  wos: 1.9,         // campeón de Red Bull 2018 y el artista más nominado en los Premios Gardel 2022
+  litkillah: 1.8,   // más de 7 millones de seguidores en Instagram, uno de los argentinos más escuchados en Spotify
+  acru: 1.4,        // varios álbumes y giras; colaboraciones con Wos, Trueno y Bizarrap
+  mks: 1.4,         // compañero de Duki en batallas que están entre las más vistas en español
+  dani: 1.3,        // dejó la FMS junto a Wos para dedicarse a la música
+  gsony: 1.2,       // campeón de Red Bull Argentina 2014 y cantante (La Voz Argentina)
+  // Campeones y leyendas de las batallas (Red Bull Internacional, God Level, FMS)
+  aczino: 2.0,      // varias veces campeón internacional de Red Bull, el más laureado
+  chuty: 2.0,       // campeón de Red Bull 2023 y 2024 (esta última compartida con Gazir)
+  skone: 1.8,       // campeón de Red Bull 2016 y finalista en varias ocasiones
+  gazir: 1.8,       // campeón de Red Bull 2024 y subcampeón en 2021 y 2022
+  papo: 1.6,        // referente argentino, finalista de grandes torneos y analista muy seguido en directos
+  dtoke: 1.6,       // campeón de Red Bull Argentina
+  mecha: 1.5,       // tercero en Red Bull 2022 y 2023
+  rapder: 1.4,      // campeón de Red Bull 2020
+  dozer: 1.4,       // jurado de la final internacional de 2024 y figura de la FMS
+  bnet: 1.3,        // leyenda española, citado como referente por otros campeones
+  kaiser: 1.3,      // campeón de Red Bull y God Level en Chile
+  teorema: 1.3,     // leyenda chilena: campeón de BDM, de la FMS y de Red Bull a nivel nacional
+  nekroos: 1.3,     // el referente del freestyle peruano
+  kodigo: 1.3,      // admirado por otros campeones como uno de los mejores freestylers
+  stuart: 1.3,
+  stigma: 1.2,      // para Kaiser, el mejor freestyler de Chile
+  jaze: 1.2,        // campeón de la primera FMS Perú y tres veces campeón de God Level
+  marithea: 1.2,    // campeona de Red Bull Colombia en 2023
+  fatn: 1.2,        // subcampeón de Red Bull Colombia en 2023
+  jonybeltran: 1.2, // semifinalista de la Red Bull Internacional de 2013
+  jessepungaz: 1.1, // campeón argentino de Red Bull 2024
+  mnak: 1.1,        // finalista español de 2024
+  invert: 1.1
+};
+// Freestylers que hoy se dedican a la música: además de su fama atraen más gente (se multiplica por ARTIST_BONUS)
+const MUSIC_ARTISTS = new Set(['duki', 'trueno', 'gotti', 'wos', 'litkillah', 'acru', 'mks', 'dani', 'gsony']);
+const ARTIST_BONUS = 1.2;
 const KO_NAMES = ['Octavos de final', 'Cuartos de final', 'Semifinales', 'Gran final'];
 const MAXP = 10;         // máximo de jugadores por sala
 const GOAL = 5;          // personajes que hay que conseguir (= número de rondas)
@@ -679,6 +721,9 @@ function simFixKodigo(r) { // Kodigo no puede tocar la liga argentina: se cambia
   if (other) mv(other, swap, kd);
   leagues.forEach(l => { const pl = r.players.find(p => p.id === l.ownerId); if (pl) pl.roster = l.teams.slice(); });
 }
+function simIntlInit(n, leagues) { // estado de la FMS Internacional según el número de jugadores (se reinicia en la temporada 2)
+  return n >= SIM_INTL_PLAYERS ? { q: [], champ: null, grp: n >= SIM_GROUP_PLAYERS, nl: n >= SIM_GROUP_PLAYERS ? 5 : 4, lgs: n === SIM_INTL_PLAYERS || n === SIM_GROUP_PLAYERS ? leagues.map((_, i) => i) : null, vres: null } : null; // q = clasificados a la Gran Final {l: liga, n: freestyler, via}
+}
 function simStart(r) {
   const n = r.players.length, elite = r.fset === 'elite', all = fPool(r);
   // Élite: a cada jugador le toca una liga (país) al azar. TWB: estos nombres son provisionales, luego cada jugador elige la suya.
@@ -700,9 +745,9 @@ function simStart(r) {
   r.sim = {
     id: Date.now(), jury: (r.jury === 5 && n >= 6) ? 5 : 3, leagues,
     order: simShuffle(leagues.map((_, i) => i)), // orden (al azar) en que se juega cada jornada de cada liga
-    stage: 'league', ko: -1, intl: n >= SIM_INTL_PLAYERS ? { q: [], champ: null, grp: n >= SIM_GROUP_PLAYERS, nl: n >= SIM_GROUP_PLAYERS ? 5 : 4, lgs: n === SIM_INTL_PLAYERS || n === SIM_GROUP_PLAYERS ? leagues.map((_, i) => i) : null, vres: null } : null, grp: null, lvotes: {}, // q = clasificados a la Gran Final {l: liga, n: freestyler, via}
+    stage: 'league', ko: -1, intl: simIntlInit(n, leagues), grp: null, lvotes: {},
     j: 1, li: 0, b: 0, round: 1, step: 'fmt', fmt: { votes: {} }, dbl: false, jn: SIM_TEAM - 1, cutJ: SIM_CUT_J, sched: simSched(false), battles: [], jurors: [], votes: {}, last: null, needRep: false,
-    mk: null, ev: null, evSeq: 0, dft: null, spare,
+    mk: null, ev: null, evSeq: 0, dft: null, spare, season: 1, kp: null, ws: null, keep: [], hist: null,
     lp: elite ? null : { order: simShuffle(r.players.map(p => p.id)), idx: 0, picks: {} }
   };
   r.phase = 'sim';
@@ -793,12 +838,12 @@ function simTally(r) {
   push(r);
 }
 const ELITE_RANK = new Map(POOL.e.map((n, i) => [key(n), i]));
-function simFame(n) { // lo conocido que es un nombre: en la lista élite van de más a menos conocidos; el resto sale de un valor fijo por nombre
-  const k = key(n);
-  if (k in FAME_OVERRIDE) return FAME_OVERRIDE[k];
-  if (ELITE_RANK.has(k)) return 1.8 - 1.2 * ELITE_RANK.get(k) / Math.max(1, ELITE_RANK.size - 1);
-  let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 1000;
-  return 0.6 + h / 1000;
+function simFame(n) { // lo conocido que es un nombre: tabla manual (FAME_OVERRIDE) > puesto en la lista élite > valor bajo fijo por nombre; los artistas de música atraen más
+  const k = key(n); let f;
+  if (k in FAME_OVERRIDE) f = FAME_OVERRIDE[k];
+  else if (ELITE_RANK.has(k)) f = 1.8 - 1.2 * ELITE_RANK.get(k) / Math.max(1, ELITE_RANK.size - 1);
+  else { let h = 0; for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 1000; f = 0.6 + 0.4 * h / 1000; }
+  return MUSIC_ARTISTS.has(k) ? f * ARTIST_BONUS : f;
 }
 function simMult(S, li, n) { // multiplicadores de caché: streamer cubriendo la jornada de esa liga y freestyler dedicado a la música
   const lg = S.leagues[li]; let m = 1;
@@ -813,7 +858,7 @@ function simVisits(cw, cl, W, L, mW, mL, stageMul) {
   return { v, vw: Math.round(pool * VISIT_SPLIT_W / 10) * 10, vl: Math.round(pool * (1 - VISIT_SPLIT_W) / 10) * 10 };
 }
 function simApply(r, w) {
-  const S = r.sim, bt = S.battles[S.b], isLg = S.stage === 'league', isPq = S.stage === 'pique', isGp = S.stage === 'grp';
+  const S = r.sim, bt = S.battles[S.b], isLg = S.stage === 'league', isPq = S.stage === 'pique', isGp = S.stage === 'grp', isWs = S.stage === 'ws';
   const W = w === 'a' ? bt.a : bt.b, lW = w === 'a' ? bt.la : bt.lb, L = w === 'a' ? bt.b : bt.a, lL = w === 'a' ? bt.lb : bt.la, rep = S.round === 2;
   const cw = S.leagues[lW].cache[W], cl = S.leagues[lL].cache[L];
   let gain = isPq ? (rep ? CACHE_PIQUE_REP : CACHE_PIQUE) : isLg ? (rep ? CACHE_WIN_REP : CACHE_WIN) : (rep ? CACHE_INTL_WIN_REP : CACHE_INTL_WIN);
@@ -833,8 +878,12 @@ function simApply(r, w) {
     const G = S.grp.groups[S.grp.g], sw = G.st[W], sl = G.st[L];
     if (rep) { sw.pts += 2; sw.wr++; sl.pts += 1; sl.lr++; } else { sw.pts += 3; sw.w++; sl.l++; }
   }
+  if (isWs) { // World Series: tabla propia (3 pts victoria, 2/1 tras réplica); el caché sube en la liga de origen de cada freestyler
+    const sw = S.ws.st[W], sl = S.ws.st[L];
+    if (rep) { sw.pts += 2; sw.wr++; sl.pts += 1; sl.lr++; } else { sw.pts += 3; sw.w++; sl.l++; }
+  }
   if ((S.stage === 'cut1' || S.stage === 'cut2') && !S.intl.q.some(x => x.l === lW && x.n === W)) S.intl.q.push({ l: lW, n: W, via: S.stage }); // el ganador de un corte clasifica
-  bt.res = { w, rep, gain, base, visits: vis.v, vw: vis.vw, vl: vis.vl, lg: isLg || isGp, pw: (isLg || isGp) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
+  bt.res = { w, rep, gain, base, visits: vis.v, vw: vis.vw, vl: vis.vl, lg: isLg || isGp || isWs, pw: (isLg || isGp || isWs) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp || isWs) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
 }
 function simMvp(r) { // MVP de la jornada: cualquiera de los 8 freestylers de la liga, al azar. Cobra caché.
   const S = r.sim, li = S.order[S.li], lg = S.leagues[li];
@@ -883,6 +932,7 @@ function simPending(r) { // tras una desconexión / salida: repasar lo que estab
   if (S.step === 'fmt') return simFmtAuto(r);
   if (S.step === 'lpick') return simLpAuto(r);
   if (S.step === 'rr') return simRrAuto(r);
+  if (S.step === 'kopick') return simKoPickAuto(r);
   push(r);
 }
 function simIntlBegin(r, kind) { // kind: 'cut1' | 'cut2'
@@ -956,7 +1006,8 @@ function simKoPairs(q) { // sorteo de octavos: se evita (si se puede) cruzar a d
 }
 function simKoBegin(r, k) { // k: 0 octavos, 1 cuartos, 2 semis, 3 final
   const S = r.sim; let pairs;
-  if (k === 0) pairs = simKoPairs(S.intl.q);
+  if (k === 0 && !(S.kp && S.kp.built)) return simKoPickBegin(r); // las llaves de octavos se eligen una a una (ver simKoPickBegin)
+  if (k === 0) pairs = S.kp.slots.map(sl => [sl[0], sl[1]]);
   else {
     const prev = S.battles.map(bt => bt.res.w === 'a' ? { l: bt.la, n: bt.a } : { l: bt.lb, n: bt.b }); // ganadores en el orden del cuadro
     pairs = []; for (let i = 0; i < prev.length; i += 2) pairs.push([prev[i], prev[i + 1]]);
@@ -978,15 +1029,113 @@ function simFinish(r) { // fin: el campeón de la internacional se lleva el prem
 function simNextJornada(r) { // la liga sigue con la siguiente jornada; si ya no quedan, empieza el segundo corte (o acaba la temporada)
   const S = r.sim;
   if (S.j < S.jn) { S.j++; S.li = 0; return simBegin(r); }
+  if (S.season === 2 && S.ws && !S.ws.done) return simWsBegin(r); // temporada 2: tras las ligas se juega la World Series
+  simAfterLeagues(r);
+}
+function simAfterLeagues(r) { // ligas (y World Series) terminadas: segundo corte / grupos de la internacional, o fin de la temporada
+  const S = r.sim;
   if (S.intl) return S.intl.grp ? (S.intl.lgs ? simGrpBegin(r) : simLeagueBegin(r)) : simIntlBegin(r, 'cut2');
-  S.step = 'end'; push(r);
+  S.stage = 'league'; S.step = 'end'; push(r);
+}
+// ---- Gran Final: los clasificados eligen su llave de octavos ----
+function simKpOpts(S, x) { // batallas con algún hueco libre; si se puede, sin cruzar a dos freestylers de la misma liga
+  const free = [];
+  S.kp.slots.forEach((sl, i) => { if (!sl[0] || !sl[1]) free.push(i); });
+  const ok = free.filter(i => { const o = S.kp.slots[i][0] || S.kp.slots[i][1]; return !o || o.l !== x.l; });
+  return ok.length ? ok : free;
+}
+function simKoPickBegin(r) {
+  const S = r.sim, q = simShuffle(S.intl.q.map(x => ({ l: x.l, n: x.n })));
+  S.kp = { order: q, idx: 0, slots: Array.from({ length: Math.floor(q.length / 2) }, () => [null, null]), done: false, built: false, log: [] };
+  S.stage = 'ko'; S.ko = 0; S.step = 'kopick'; S.battles = []; S.jurors = [];
+  simKoPickAuto(r);
+}
+function simKoPlace(r, slot) { // el clasificado que ha salido entra en la batalla «slot»
+  const S = r.sim, K = S.kp, x = K.order[K.idx];
+  if (!K || K.done || !simKpOpts(S, x).includes(slot)) return false;
+  const sl = K.slots[slot], seat = sl[0] ? 1 : 0;
+  sl[seat] = x; K.log.push({ l: x.l, n: x.n, slot }); K.idx++;
+  if (K.idx >= K.order.length) K.done = true;
+  return true;
+}
+function simKpBot(S, x) { // bot o jugador desconectado: el 60% de las veces va contra el rival de menos caché, si no al azar
+  const opts = simKpOpts(S, x), occ = opts.filter(i => S.kp.slots[i][0] || S.kp.slots[i][1]);
+  if (occ.length && Math.random() < 0.6) {
+    const cache = i => { const o = S.kp.slots[i][0] || S.kp.slots[i][1]; return S.leagues[o.l].cache[o.n]; };
+    return occ.slice().sort((a, b) => cache(a) - cache(b))[0];
+  }
+  return simShuffle(opts)[0];
+}
+function simKoPickAuto(r) { // avanza solo hasta que le toca elegir a una persona (si solo queda una opción, entra solo)
+  const S = r.sim; if (!S || S.step !== 'kopick') return;
+  const K = S.kp;
+  while (!K.done) {
+    const x = K.order[K.idx], opts = simKpOpts(S, x), p = find(r, S.leagues[x.l].ownerId);
+    if (opts.length > 1 && p && !p.bot && p.on) break; // espera a que elija el representante de su liga
+    simKoPlace(r, opts.length === 1 ? opts[0] : simKpBot(S, x));
+  }
+  push(r);
+}
+// ---- Temporada 2 ----
+function simSeason2Begin(r) {
+  const S = r.sim; if (!S || S.step !== 'end' || S.season !== 1) return;
+  const champs = S.leagues.map(lg => simTable(lg)[0].n), ic = S.intl && S.intl.champ ? S.intl.champ : null, w = simWinner(r);
+  S.keep = [...new Set([...champs, ...(ic ? [ic.n] : [])])]; // los campeones (de liga y de la internacional) se mantienen: no se pueden despedir ni draftear
+  S.hist = { winner: w ? { ownerName: w.ownerName, n: w.n, c: w.c, league: w.league } : null, champs: S.leagues.map((lg, l) => ({ l, n: champs[l] })), intl: ic ? { l: ic.l, n: ic.n } : null };
+  S.season = 2; S.id = Date.now();
+  S.leagues.forEach(lg => { // nueva temporada: tablas y calendario a cero; el caché, las visitas y la música se conservan
+    lg.st = {}; lg.teams.forEach(t => { lg.st[t] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
+    lg.fix = simFixture(lg.teams); lg.mvps = []; lg.boost = null; lg.makeup = null;
+  });
+  S.order = simShuffle(S.leagues.map((_, i) => i));
+  S.stage = 'league'; S.ko = -1; S.intl = simIntlInit(r.players.length, S.leagues); S.grp = null; S.lvotes = {};
+  S.j = 1; S.li = 0; S.b = 0; S.round = 1; S.battles = []; S.jurors = []; S.votes = {}; S.last = null; S.needRep = false;
+  S.mk = null; S.ev = null; S.dft = null; S.rr = null; S.kp = null; S.ws = null; S.vetoes = []; S.mvp = null;
+  simRrBegin(r); // primero los despidos (hasta 2) y luego el draft (1 intercambio)
+}
+function simSeasonGo(r) { // todo listo para jugar la temporada: en la 2 se fija la World Series con los 10 mejor pagados tras despidos y draft
+  const S = r.sim;
+  if (S.season === 2) simWsPrepare(r);
+  simBegin(r);
+}
+function simWsPrepare(r) {
+  const S = r.sim; S.ws = null;
+  const all = [];
+  S.leagues.forEach((lg, l) => lg.teams.forEach(n => all.push({ l, n, c: lg.cache[n] })));
+  if (all.length < WS_SIZE) return; // con una sola liga (8 freestylers) no hay World Series
+  const top = all.sort((a, b) => b.c - a.c || a.n.localeCompare(b.n)).slice(0, WS_SIZE), st = {};
+  top.forEach(x => { st[x.n] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
+  S.ws = { members: top.map(x => ({ l: x.l, n: x.n })), fix: simFixture(top.map(x => x.n)), st, j: 1, jn: S.dbl ? 5 : WS_SIZE - 1, sched: S.dbl ? [[0, 1], [2, 3], [4, 5], [6, 7], [8]] : [0, 1, 2, 3, 4, 5, 6, 7, 8].map(k => [k]), done: false, champ: null };
+}
+function simWsRename(S, old, nw) { // un freestyler de la World Series ha sido sustituido en su liga: el nuevo ocupa su plaza con sus puntos
+  const W = S.ws, m = W.members.find(x => x.n === old); if (!m) return;
+  m.n = nw; W.st[nw] = W.st[old]; delete W.st[old];
+  W.fix = W.fix.map(rd => rd.map(pr => pr.map(n => n === old ? nw : n)));
+}
+function simWsTable(S) {
+  return S.ws.members.map(m => ({ n: m.n, lgi: m.l, c: S.leagues[m.l].cache[m.n], v: (S.leagues[m.l].views || {})[m.n] || 0, ...S.ws.st[m.n] })).sort((a, b) => b.pts - a.pts || b.c - a.c || a.n.localeCompare(b.n));
+}
+function simWsBegin(r) { // presentación de la World Series
+  const S = r.sim; S.stage = 'ws'; S.step = 'wsdraw'; S.battles = []; S.jurors = []; S.mk = null; push(r);
+}
+function simWsJornada(r) {
+  const S = r.sim, W = S.ws, lOf = Object.fromEntries(W.members.map(m => [m.n, m.l]));
+  S.stage = 'ws'; S.step = 'intro'; S.b = 0; S.round = 1; S.votes = {}; S.last = null; S.needRep = false; S.jurors = [];
+  S.battles = W.sched[W.j - 1].flatMap(k => W.fix[k]).map(([a, b]) => ({ a, la: lOf[a], b, lb: lOf[b], res: null, fav: null }));
+  push(r);
+}
+function simWsClose(r) { // acaba la World Series: el campeón de la tabla cobra el premio
+  const S = r.sim, W = S.ws; W.done = true;
+  const t = simWsTable(S)[0], m = W.members.find(x => x.n === t.n);
+  S.leagues[m.l].cache[m.n] += CACHE_WS_CHAMP;
+  W.champ = { l: m.l, n: m.n, bonus: CACHE_WS_CHAMP };
 }
 // ---- Draft entre ligas ----
 const simOwnLg = (S, pid) => S.leagues.findIndex(l => l.ownerId === pid);
 function simDraftBegin(r) {
   const S = r.sim, ids = simShuffle(r.players.map(p => p.id)), order = [];
   for (let k = 0; k < DRAFT_ROUNDS; k++) (k % 2 ? ids.slice().reverse() : ids).forEach(id => order.push(id)); // serpiente
-  S.dft = { order, idx: 0, locked: [], log: [], done: false };
+  S.dft = { order, idx: 0, locked: S.season === 2 ? S.keep.slice() : [], log: [], done: false };
   S.step = 'dft';
   simDraftAuto(r);
 }
@@ -1094,6 +1243,8 @@ function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler
   lg.cache[nw] = CACHE_START;
   lg.st[nw] = mode === 'inherit' ? { ...oldSt } : { pts: 0, w: 0, wr: 0, lr: 0, l: 0 };
   lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === old ? nw : n))); // el nuevo ocupa su sitio en todo el calendario (el pasado solo sirve para saber a quién enfrentó cada uno)
+  if (lg.music) lg.music = lg.music.filter(x => x !== old);
+  if (S.ws) simWsRename(S, old, nw);
   const p = find(r, lg.ownerId); if (p) p.roster = lg.teams.slice();
   if (mode === 'redo' && prev.length) lg.makeup = prev.map(o => [nw, o]);
   return { nw, redo: mode === 'redo' ? prev.length : 0 };
@@ -1211,6 +1362,10 @@ function simAdvance(r) { // desde la pantalla de cierre (jEnd) a lo siguiente
     if (g.g < 5) { g.g++; g.gj = 1; return simGrpJornada(r); }
     return simKoBegin(r, 0); // 16 clasificados: octavos con llaves al azar
   }
+  if (S.stage === 'ws') { // World Series: siguiente jornada o, al acabar, lo que viniera después de las ligas
+    if (S.ws.j < S.ws.jn) { S.ws.j++; return simWsJornada(r); }
+    return simAfterLeagues(r);
+  }
   if (S.stage === 'cut1') return simNextJornada(r); // de vuelta a las ligas (jornada 4)
   if (S.stage === 'cut2') return simKoBegin(r, 0);
   if (S.stage === 'ko') return S.ko < 3 ? simKoBegin(r, S.ko + 1) : simFinish(r);
@@ -1218,14 +1373,17 @@ function simAdvance(r) { // desde la pantalla de cierre (jEnd) a lo siguiente
 function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
   const S = r.sim; if (!S) return;
   if (S.step === 'draw') return simRrBegin(r);
-  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (S.leagues.length > 1) simDraftBegin(r); else simBegin(r); } return; }
-  if (S.step === 'dft') { if (S.dft && S.dft.done) simBegin(r); return; }
+  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (S.leagues.length > 1) simDraftBegin(r); else simSeasonGo(r); } return; }
+  if (S.step === 'dft') { if (S.dft && S.dft.done) simSeasonGo(r); return; }
+  if (S.step === 'kopick') { if (S.kp && S.kp.done) { S.kp.built = true; simKoBegin(r, 0); } return; }
+  if (S.step === 'wsdraw') return simWsJornada(r);
   if (S.step === 'ev') return simEventNext(r);
   if (S.step === 'intro') { S.b = 0; return simStartBattle(r); }
   if (S.step === 'reveal') {
     if (S.needRep) { S.round = 2; S.needRep = false; return simOpenVote(r); } // ronda extra: ya no se puede votar réplica
     if (S.b < S.battles.length - 1) { S.b++; return simStartBattle(r); }
     if (S.stage === 'grp' && S.grp.gj === 5) simGrpClose(r); // último partido del grupo: se conocen los clasificados
+    if (S.stage === 'ws' && S.ws.j === S.ws.jn) simWsClose(r); // última jornada de la World Series: se conoce el campeón
     if (S.stage === 'league' && !S.mk) simMvp(r); // MVP de la jornada de esta liga
     S.step = 'jEnd'; return push(r);
   }
@@ -1257,6 +1415,13 @@ function simView(r) {
     grp: S.grp ? { g: S.grp.g, gj: S.grp.gj, q: GRP_Q, qr: GRP_Q_RES, groups: S.grp.groups.map(G => ({ name: G.name, done: G.done, table: simGrpTable(S, G) })) } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
     leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [], boostJ: lg.boost ? lg.boost.j : 0, music: lg.music || [] })),
+    season: S.season, keep: S.season === 2 ? S.keep : [], hist: S.hist,
+    kp: S.step === 'kopick' && S.kp ? (() => {
+      const K = S.kp, cur = K.done ? null : K.order[K.idx], cc = x => x ? { l: x.l, n: x.n, c: S.leagues[x.l].cache[x.n] } : null;
+      return { idx: K.idx, total: K.order.length, done: K.done, cur: cc(cur), pid: cur ? S.leagues[cur.l].ownerId : null, opts: cur ? simKpOpts(S, cur) : [], slots: K.slots.map(sl => sl.map(cc)),
+        pending: K.order.slice(K.idx + (K.done ? 0 : 1)).map(cc).sort((a, b) => a.l - b.l || a.n.localeCompare(b.n)) }; // el orden de salida no se revela
+    })() : null,
+    ws: S.ws ? { j: S.ws.j, jn: S.ws.jn, done: S.ws.done, champ: S.ws.champ, bonus: CACHE_WS_CHAMP, size: WS_SIZE, table: simWsTable(S) } : null,
     winner: simWinner(r), cur: null
   };
   if (['intro', 'vote', 'reveal', 'jEnd'].includes(S.step)) {
@@ -1568,6 +1733,7 @@ io.on('connection', s => {
     if (r.sim.step === 'lpick') { const L = r.sim.lp; if (L && L.idx < L.order.length) simLpPick(r, L.order[L.idx], null); return simLpAuto(r); }
     if (r.sim.step === 'ev') { const ev = r.sim.ev; if (ev && !ev.done) simEventResolve(r, simEventRandomChoice(r.sim, ev)); return; }
     if (r.sim.step === 'rr') { const R = r.sim.rr; if (R) r.players.forEach(p => { R.done[p.id] = true; }); return simRrAuto(r); }
+    if (r.sim.step === 'kopick') { const K = r.sim.kp; if (K && !K.done) simKoPlace(r, simKpBot(r.sim, K.order[K.idx])); return simKoPickAuto(r); }
     if (r.sim.step === 'dft') { const D = r.sim.dft; if (D && D.prop) simDraftResolve(r, Math.random() < 0.5); else if (D && D.idx < D.order.length) simDraftRandom(r, D.order[D.idx]); return simDraftAuto(r); }
     if (r.sim.step === 'lvote') { // quien no ha votado vota solo como un bot
       const S = r.sim; r.players.forEach(p => { if (!(p.id in S.lvotes)) { const t = S.leagues.map((_, l) => l); S.lvotes[p.id] = simShuffle(t).slice(0, S.intl.nl); } });
@@ -1612,9 +1778,20 @@ io.on('connection', s => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'rr') return;
     const R = r.sim.rr; if (!R || R.done[p.id]) return;
     const lg = r.sim.leagues.find(l => l.ownerId === p.id); if (!lg) return;
-    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => lg.teams.includes(n)).slice(0, RR_MAX);
+    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => lg.teams.includes(n) && !(r.sim.keep || []).includes(n)).slice(0, RR_MAX);
     R.sel[p.id] = list; R.done[p.id] = true;
     simRrAuto(r);
+  });
+  s.on('simKoPick', slot => { // octavos: el representante de la liga del clasificado que ha salido elige batalla
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'kopick') return;
+    const K = r.sim.kp; if (!K || K.done) return;
+    const x = K.order[K.idx]; if (r.sim.leagues[x.l].ownerId !== p.id) return;
+    if (!Number.isInteger(slot) || !simKoPlace(r, slot)) return;
+    simKoPickAuto(r);
+  });
+  s.on('simSeason2', () => { // el anfitrión abre la temporada 2 al acabar la 1
+    const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
+    simSeason2Begin(r);
   });
   s.on('simNext', () => {
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
@@ -1651,7 +1828,7 @@ io.on('connection', s => {
     } else {
       if (r.phase === 'auction' && r.auc === 'blind' && Object.keys(r.sealed).length && eligible(r).filter(q => q.on).every(q => q.id in r.sealed)) return closeBlind(r);
       if (r.phase === 'vote' && r.players.filter(q => q.on).every(q => r.votes[q.id])) return finishVote(r);
-      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft', 'lpick', 'rr', 'fmt'].includes(r.sim.step)) return simPending(r);
+      if (r.phase === 'sim' && r.sim && ['vote', 'lvote', 'ev', 'dft', 'lpick', 'rr', 'fmt', 'kopick'].includes(r.sim.step)) return simPending(r);
       push(r);
     }
   });
