@@ -1763,16 +1763,19 @@ io.on('connection', s => {
   function joinRoom(r, name, tok, cb) {
     let p = r.players.find(q => q.tok === tok);
     if (!p) {
-      if (r.phase !== 'lobby') return cb({ err: 'La partida ya empezó' });
+      const late = r.phase !== 'lobby'; // entrar con la partida ya empezada: solo en Simulaciones (entras como jurado; en la carrera, sin liga)
+      if (late && !(r.gm === 'sim' && r.phase === 'sim' && r.sim)) return cb({ err: 'La partida ya empezó (solo se puede entrar a mitad en Simulaciones)' });
       if (r.players.length >= maxPlayers(r)) return cb({ err: 'Sala llena (máx. ' + maxPlayers(r) + ')' });
       const nm = String(name || '').trim().slice(0, 14) || 'Jugador ' + (r.players.length + 1);
       p = { id: 'p' + (++pidSeq), tok, name: nm, money: moneyOf(r), roster: [], cast: {}, chars: {}, on: true, sid: null, tname: null, rivals: [], form: '433' };
       r.players.push(p);
       if (!r.hostId) r.hostId = p.id;
+      if (late) p.late = true;
     }
     attach(r, p);
     cb({ ok: true, id: p.id, code: r.code });
     s.emit('chatHistory', r.chat);
+    if (p.late && r.phase === 'sim' && r.sim) return simPending(r); // el recién llegado cuenta para lo que se estuviera esperando (votos, despidos…) y empuja el estado
     push(r);
   }
 
