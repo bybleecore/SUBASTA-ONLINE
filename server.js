@@ -777,7 +777,18 @@ function simPay(S, l, n, amt) { // cobra (o pierde) caché: en el Modo Manager v
   if (S.mgr) lg.bank = Math.max(0, (lg.bank || 0) + amt); else lg.cache[n] += amt;
 }
 const simCheapest = (r, pool, k) => pool.map(n => simPrice(r, n)).sort((a, b) => a - b).slice(0, k).reduce((a, b) => a + b, 0);
-function simMarketPool(r, lname, taken, k) { // mini mercado: k freestylers al azar que no estén en ninguna liga (élite: mejor de ese país)
+// Cada temporada trae un mercado distinto: los freestylers que ya salieron en un mercado de una temporada anterior no vuelven a salir
+// mientras queden otros (si el mercado se queda corto, completan los que salieron hace más tiempo).
+const simMktSeason = r => r.sim ? r.sim.season : 1;
+function simMktStale(r) { const seen = r.mktSeen || {}, ses = simMktSeason(r); return Object.keys(seen).filter(x => seen[x] < ses); }
+function simMktMark(r, arr) { const m = r.mktSeen = r.mktSeen || {}, ses = simMktSeason(r); arr.forEach(n => { m[key(n)] = ses; }); }
+function simMarketPool(r, lname, taken, k) {
+  let pool = simMarketPool0(r, lname, new Set([...taken, ...simMktStale(r)]), k);
+  if (pool.length < k) pool = [...pool, ...simMarketPool0(r, lname, taken, k).filter(x => !pool.includes(x))].slice(0, k);
+  simMktMark(r, pool);
+  return pool;
+}
+function simMarketPool0(r, lname, taken, k) { // mini mercado: k freestylers al azar que no estén en ninguna liga (élite: mejor de ese país)
   const elite = r.fset === 'elite', free = simCandidates(r, fPool(r).filter(x => !taken.has(key(x)) && !noKodigo({ name: lname }, x)), k);
   const pri = elite ? free.filter(x => eligLg(r, lname, x)) : free;
   let pool = pri.slice(0, k);
@@ -804,9 +815,14 @@ function simMktTake(r, n) { // el fichado desaparece de todos los mercados (y lo
     lg.mkt.pool = lg.mkt.pool.filter(x => key(x) !== k);
     if (lg.mkt.pool.length < lg.mkt.need) {
       const have = new Set(lg.mkt.pool.map(key));
-      lg.mkt.pool.push(...simCandidates(r, fPool(r).filter(x => !taken.has(key(x)) && !have.has(key(x)) && !noKodigo(lg, x)), MGR_MARKET).slice(0, lg.mkt.need - lg.mkt.pool.length));
-      lg.bank = Math.max(lg.bank, simCheapest(r, lg.mkt.pool, lg.mkt.need));
+      const room = lg.mkt.need - lg.mkt.pool.length, stale = new Set(simMktStale(r));
+      const base = fPool(r).filter(x => !taken.has(key(x)) && !have.has(key(x)) && !noKodigo(lg, x));
+      let add = simCandidates(r, base.filter(x => !stale.has(key(x))), MGR_MARKET).slice(0, room);
+      if (add.length < room) add = [...add, ...simCandidates(r, base, MGR_MARKET).filter(x => !add.includes(x))].slice(0, room);
+      simMktMark(r, add);
+      lg.mkt.pool.push(...add);
     }
+    lg.bank = Math.max(lg.bank, simCheapest(r, lg.mkt.pool, lg.mkt.need)); // siempre alcanza para completar la plantilla (aunque otros hayan fichado a los más baratos)
   });
 }
 function simMktBuy(r, li, n) {
@@ -864,6 +880,7 @@ function simMakeLeague(r, lname, owner, used) { // crea una liga con 8 freestyle
   return { name: lname, ownerId: owner.id, ownerName: owner.name, teams, cache, st, fix: simFixture(teams) };
 }
 function simStart(r) {
+  r.mktSeen = {}; // qué freestylers han salido ya en algún mercado (y en qué temporada)
   const n = r.players.length, elite = r.fset === 'elite', all = fPool(r);
   // Élite: a cada jugador le toca una liga (país) al azar. TWB: estos nombres son provisionales, luego cada jugador elige la suya.
   const names = simShuffle(SIM_LEAGUES).slice(0, n);
