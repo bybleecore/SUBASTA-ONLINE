@@ -44,6 +44,15 @@ const CACHE_PIQUE = 500, CACHE_PIQUE_REP = 300; // caché del ganador de la exhi
 const POLEMICA_LOSS = 0.3; // «polémica»: si no le pagas y lo mantienes, pierde este % de su caché
 const DRAFT_ROUNDS = 1;   // rondas del draft: 1 propuesta de intercambio por jugador (hay que acordarlo con el dueño de la otra liga; si rechaza, pierdes el turno)
 const EVENTS = ['baja', 'viral', 'polemica', 'pique', 'veto', 'streamer', 'music']; // el orden es el de la ruleta (el cliente usa el mismo)
+// ---- Modo Manager (solo con Modo Carrera): el caché es de la LIGA y cada freestyler tiene un precio según su rareza (oculta para los jugadores) ----
+const MGR_PRICE = { S: 5500, L: 3800, M: 2600, E: 1800, R: 1200, C: 800 }; // precio por rareza: Secreto, Legendario, Mítico, Épico, Raro, Común
+const MGR_MARKET = 20;  // freestylers del mini mercado de una liga nueva
+const MGR_REPL = 10;    // freestylers del mercado cuando solo hay que reemplazar a alguien (despidos, bajas, retiros, polémicas)
+const MGR_APPEAR = { S: 0.05, L: 0.1, M: 0.6, E: 1, R: 1, C: 1 }; // probabilidad de que un freestyler pueda entrar en un mercado (los de más rareza casi nunca); en los mercados de reemplazo (10) Secretos y Legendarios la mitad
+const MGR_TOP_MAX = 1; // como mucho 1 Legendario o Secreto por mercado
+const MGR_BUDGET = { easy: 1.35, normal: 1.0, hard: 0.8 }; // dificultad: presupuesto inicial = 8 freestylers de precio medio × este factor (siempre alcanza para completar los 8)
+const RARITY_E = 'GAZIR:S,CHUTY:S,DOZER:R,MECHA:L,SOPHIA:E,MOTOSIERRA:R,SARA SOCAS:E,SKONE:L,JONY BELTRAN:L,BARON:R,NEKROOS:M,ACZINO:S,CTZ:R,BNET:S,SATIM:C,JOQERR:E,KLAN:E,STUART:L,KUSA:C,BLON:M,DTOKE:M,SHECKA:R,SWEETPAIN:L,NAVAS:R,EL MENOR:L,DANI:L,METALINGUISTICA:E,COLOSO:R,FORCE:C,VALLES T:L,ABEL:E,CACHA:C,PAPO:L,REPLIK:E,PIEZAS:E,BELICO:E,LIT KILLAH:M,TRUENO:L,G SONY:E,LOKILLO:M,ACRU:S,LOBO LOPEZ:C,RC:E,FAT N:E,EXODO LIRICAL:M,TEOREMA:L,GHETTO:E,JAZE:L,STRIKE:R,NECIA:R,SUMERIA:C,NITRO:M,FUSOK:E,NOCRE:E,KMBRA:E,KAISER:L,ZTICMA:E,EXE:E,RIFE:E,J1:E,KIAN:E,MARITHEA:L,AZUKY:M,SUB:E,LIT IGNIS:R,HORUS:R,JOTA:E,ALMENDRADES:E,FAT TONY:R,GOTTI:M,PANDORA:E,LARRIX:L,DALIA C:R,KG:M,DIMA:R,WOS:L,KODIGO:M,1TOBY:E,DYSE:E,NOTA ROJA:E,LOBO ESTEPARIO:M,DYBBUK:R,FACU HDR:E,MR EGO:E,BABI:E,INVERT:E,WOLF:R,ARMAMENTE:C,CHANG:M,LETRA:E,LANCER LIRICAL:E,NAICEN:R,SPEKTRO:R,HAMMER:R,URKO:E,VISIONARIO:E,PUPPY:E,AIRON:E,VIJAY:M,YENKY ONE:C,REVERSE:M,FILOSOFO:E,ELEMECE:R,ZAKI:R,99:R,BASEK:E,DROSE:M,EL BARTO:R,NASHO:C,RODAMIENTO:C,STIGMA:R,INDICO:C,ALDAHIR:C,NASIR CATRIEL:R,NAISTA:C,COBE:R,RITTER:R,RAPDER:M,XHAVEZ:E,ARTIL:C,IBAN:E,ARKANO:M,RAMSTER:C,CAFU:R,PIERO PISTAS:C,VENTI:E,JC SNAKE:R,LETRAS TARAPOTO:C,ICON:C,MSL:R,KATACRIST:R,BLAXO:E,XPLAIN:M,ZASKO:L,CHYSTE MC:L,JALONER:L,DANI VK:R,DESTELLO:C,BTI:C,ADESONG:E,ANUBIS:R,STICK:R,FABIUKI:E,JESSE PUNGAZ:E,MCKLOPEDIA:M,NACHO:E,ERRECE:C,KHAN:R,TIRPA:E,MKS:E,JACK ADRENALINA:C,ZAINA:C,DUKI:L,POTENCIA:C,YOIKER:C,WALLS:E,MNAK:M,TATA:R,DOMINIC:C,BTA:C,SKIPER:R,GHOST:C';
+const RARITY_F = 'Darckstar:E,Piscu:S,Raven:M,Tikal:L,Calux:L,Xseven:M,Enigma:M,Miga:E,Alexiflow:R,Toni:E,Apology:R,Motosierra:E,Afidu:M,Aguscab:E,Alan Br:S,Ale No Ma:R,Angeloski:R,Bauti:M,Manuaka:M,BenjaLit:R,BigPitt:C,Billzo:E,Blanko:R,Bliduned:C,Bohemio:M,Bravo:C,Brz:R,Chozir:R,Dalo:L,Dallas:E,Danster:S,Dexuz:M,Pity:R,Zyklo:S,Eliot Sanity:M,Emiaj:C,Gess:R,Reaper:L,FreePuro:E,GP:M,Gino:M,Highscore:C,Jlarriva:E,Javi U Know:E,Jayden:R,JD:S,Joha:R,Jose:M,MCO:M,Juasmio:R,Kenn:E,Kojiro:R,Kuzko:R,Lobo:E,Logan:M,Tiaguiño:R,Noface:R,Laiño:R,LD:M,MicroNico:C,LU SM:E,Lil Ñaño:C,Luz:M,Mocu:M,Motera:R,Mzeta:C,Naoky:M,Panchok:E,Emi:R,RIverdash:C,Rubik:R,Ruvi:M,Saiko:R,505:R,Santufer:C,Seva:L,Sol:E,Taser:R,Tomastur:R,Vazco:R,Vince:R,Yara:L,Maki:M,Snti:L,Furroflow:R,Naps:R,Keifert:R,Micha:R,Ashura:R,Bendercat:M,Byaki:E,Reckless:E';
 // ---- Modo Carrera (solo con Simulaciones): todas las temporadas de la FMS, con más ligas cada año ----
 const CAREER_LEAGUES = [ // ligas de cada temporada; las que ya existían conservan sus freestylers y su caché
   ['FMS España'],
@@ -469,7 +478,7 @@ function view(r) {
     reveal: r.phase === 'roulette' ? r.reveal : null,
     last: r.last,
     players: r.players.map(p => ({ id: p.id, name: p.name, money: p.money, roster: p.roster, cast: p.cast, chars: p.chars, tname: p.tname, rivals: p.rivals, form: p.form, on: p.on, bot: !!p.bot, eligible: el.includes(p) })),
-    offers: r.offers, career: isCareer(r), fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
+    offers: r.offers, career: isCareer(r), mgr: isMgr(r), mdif: r.mdif || 'normal', fset: r.fset || null, fsetId: r.fsetId || 0, jury: r.jury || 3, sim: r.gm === 'sim' && r.sim ? simView(r) : null,
     voted: r.phase === 'vote' ? Object.keys(r.votes) : [],
     results: r.results
   };
@@ -724,6 +733,7 @@ function simFmtAuto(r) { // se resuelve cuando han votado todos los jugadores hu
     S.dbl = d === nr ? Math.random() < 0.5 : d > nr; // gana la mayoría; empate al azar
     S.jn = S.dbl ? 4 : SIM_TEAM - 1; S.cutJ = S.dbl ? SIM_CUT_J_DBL : SIM_CUT_J; S.sched = simSched(S.dbl);
     if (S.lp) { S.step = 'lpick'; return simLpAuto(r); }
+    if (S.mgr) return simMktBegin(r); // Modo Manager: primero se arma la plantilla en el mercado
     S.step = 'draw';
   }
   push(r);
@@ -744,7 +754,106 @@ function simIntlInit(n, leagues) { // estado de la FMS Internacional según el n
   if (n === 2 && leagues.length === 2) return { q: [], champ: null, grp: false, mini: true, nl: 2, lgs: [0, 1], vres: null }; // MINI INTER: con 2 ligas, los 4 primeros de cada una juegan unos cuartos de final
   return n >= SIM_INTL_PLAYERS ? { q: [], champ: null, grp: n >= SIM_GROUP_PLAYERS, nl: n >= SIM_GROUP_PLAYERS ? 5 : 4, lgs: n === SIM_INTL_PLAYERS || n === SIM_GROUP_PLAYERS ? leagues.map((_, i) => i) : null, vres: null } : null; // q = clasificados a la Gran Final {l: liga, n: freestyler, via}
 }
+// ---- Modo Manager ----
+const isMgr = r => isCareer(r) && !!r.mgr;
+let RAR_E = null, RAR_F = null;
+const parseRar = t => { const m = {}; t.split(',').forEach(x => { const i = x.lastIndexOf(':'); m[key(x.slice(0, i))] = x.slice(i + 1); }); return m; };
+function simRar(r, n) { // rareza (S, L, M, E, R, C); si no está en la tabla cuenta como Raro
+  if (!RAR_E) { RAR_E = parseRar(RARITY_E); RAR_F = parseRar(RARITY_F); }
+  return (r.fset === 'elite' ? RAR_E : RAR_F)[key(n)] || 'R';
+}
+const simPrice = (r, n) => MGR_PRICE[simRar(r, n)]; // precio de un freestyler según su rareza
+function simCandidates(r, arr, k) { // candidatos de un mercado: al azar, cada uno entra con la probabilidad de su rareza y como mucho MGR_TOP_MAX Legendarios/Secretos
+  const f = k >= MGR_MARKET ? 1 : 0.5; let top = 0;
+  return simShuffle(arr).filter(x => {
+    const q = simRar(r, x), p = (q === 'S' || q === 'L') ? MGR_APPEAR[q] * f : MGR_APPEAR[q];
+    if (Math.random() >= p) return false;
+    if ((q === 'S' || q === 'L') && ++top > MGR_TOP_MAX) return false;
+    return true;
+  });
+}
+function simPay(S, l, n, amt) { // cobra (o pierde) caché: en el Modo Manager va a la liga; si no, al freestyler
+  const lg = S.leagues[l];
+  if (S.mgr) lg.bank = Math.max(0, (lg.bank || 0) + amt); else lg.cache[n] += amt;
+}
+const simCheapest = (r, pool, k) => pool.map(n => simPrice(r, n)).sort((a, b) => a - b).slice(0, k).reduce((a, b) => a + b, 0);
+function simMarketPool(r, lname, taken, k) { // mini mercado: k freestylers al azar que no estén en ninguna liga (élite: mejor de ese país)
+  const elite = r.fset === 'elite', free = simCandidates(r, fPool(r).filter(x => !taken.has(key(x)) && !noKodigo({ name: lname }, x)), k);
+  const pri = elite ? free.filter(x => eligLg(r, lname, x)) : free;
+  let pool = pri.slice(0, k);
+  if (pool.length < k) pool = [...pool, ...free.filter(x => !pool.includes(x))].slice(0, k);
+  if (pool.length < k) { // por si la bolsa se queda corta: se completa con los que quedaban (sin Legendarios ni Secretos si se puede)
+    const rest = simShuffle(fPool(r)).filter(x => !taken.has(key(x)) && !noKodigo({ name: lname }, x) && !pool.includes(x));
+    pool = [...pool, ...rest.filter(x => !'SL'.includes(simRar(r, x))), ...rest.filter(x => 'SL'.includes(simRar(r, x)))].slice(0, k);
+  }
+  return pool;
+}
+function simBudget(r, pool, need) { // presupuesto inicial: no alcanza para los mejores, pero siempre para completar la plantilla
+  const all = fPool(r), avg = all.reduce((a, n) => a + simPrice(r, n), 0) / Math.max(1, all.length);
+  return Math.max(simCheapest(r, pool, need), Math.round(avg * need * (MGR_BUDGET[r.mdif] || 1) / 100) * 100);
+}
+function simMktCan(r, lg, n) { // ¿puede fichar a n sin quedarse sin caché para completar los 8?
+  const M = lg.mkt; if (!M || M.need <= 0 || !M.pool.includes(n)) return false;
+  return lg.bank - simPrice(r, n) >= simCheapest(r, M.pool.filter(x => x !== n), M.need - 1);
+}
+function simMktTake(r, n) { // el fichado desaparece de todos los mercados (y los que se quedan cortos se rellenan)
+  const S = r.sim, k = key(n), taken = new Set(S.leagues.flatMap(l => l.teams).map(key));
+  (S.mgrOut || []).forEach(x => taken.add(x));
+  S.leagues.forEach(lg => {
+    if (!lg.mkt) return;
+    lg.mkt.pool = lg.mkt.pool.filter(x => key(x) !== k);
+    if (lg.mkt.pool.length < lg.mkt.need) {
+      const have = new Set(lg.mkt.pool.map(key));
+      lg.mkt.pool.push(...simCandidates(r, fPool(r).filter(x => !taken.has(key(x)) && !have.has(key(x)) && !noKodigo(lg, x)), MGR_MARKET).slice(0, lg.mkt.need - lg.mkt.pool.length));
+      lg.bank = Math.max(lg.bank, simCheapest(r, lg.mkt.pool, lg.mkt.need));
+    }
+  });
+}
+function simMktBuy(r, li, n) {
+  const S = r.sim, lg = S.leagues[li]; if (!lg || !simMktCan(r, lg, n)) return false;
+  const price = simPrice(r, n);
+  lg.bank -= price; lg.teams.push(n); lg.cache[n] = price; lg.st[n] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 };
+  lg.mkt.need--;
+  simMktTake(r, n);
+  if (lg.mkt.need <= 0) simMktFinish(r, li);
+  return true;
+}
+function simMktFinish(r, li) { // plantilla completa: calendario nuevo y tabla a cero
+  const S = r.sim, lg = S.leagues[li];
+  lg.mkt = null; lg.st = {}; lg.res = []; lg.mvps = [];
+  lg.teams.forEach(t => { lg.cache[t] = simPrice(r, t); lg.st[t] = { pts: 0, w: 0, wr: 0, lr: 0, l: 0 }; });
+  lg.fix = simFixture(lg.teams);
+  simSyncRoster(r, lg.ownerId);
+}
+function simMktBotBuy(r, li) { // bots, desconectados y «que fichen solos»: ficha uno de los 3 más caros que pueda pagar
+  const lg = r.sim.leagues[li]; if (!lg.mkt) return false;
+  const opts = lg.mkt.pool.filter(n => simMktCan(r, lg, n)).sort((a, b) => simPrice(r, b) - simPrice(r, a));
+  return opts.length ? simMktBuy(r, li, simShuffle(opts.slice(0, 3))[0]) : false;
+}
+function simMktAuto(r) {
+  const S = r.sim; if (!S || S.step !== 'mkt') return;
+  S.leagues.forEach((lg, li) => { const p = find(r, lg.ownerId); if (!lg.mkt || (p && !p.bot && p.on)) return; while (lg.mkt && simMktBotBuy(r, li)); });
+  push(r);
+}
+function simMktBegin(r) { r.sim.step = 'mkt'; simMktAuto(r); }
+function simMgrRelease(r, li, old) { // despedido: sale de la plantilla (su plaza se ficha en el mercado)
+  const S = r.sim, lg = S.leagues[li];
+  lg.teams = lg.teams.filter(t => t !== old); delete lg.cache[old]; delete lg.st[old]; if (lg.views) delete lg.views[old];
+  if (lg.music) lg.music = lg.music.filter(x => x !== old);
+  (S.mgrOut = S.mgrOut || []).push(key(old));
+}
+function simMgrOpenMarket(r, li, need) { // mercado de 20 para cubrir las plazas libres; si el caché no llega para los más baratos, la liga recibe lo justo
+  const S = r.sim, lg = S.leagues[li], taken = new Set(S.leagues.flatMap(l => l.teams).map(key));
+  (S.mgrOut || []).forEach(x => taken.add(x));
+  const pool = simMarketPool(r, lg.name, taken, MGR_REPL);
+  lg.bank = Math.max(lg.bank || 0, simCheapest(r, pool, need));
+  lg.mkt = { pool, need };
+}
 function simMakeLeague(r, lname, owner, used) { // crea una liga con 8 freestylers que no estén en otra (élite: solo de ese país)
+  if (isMgr(r)) { // Modo Manager: la liga nace vacía, con un mercado de 20 y un presupuesto para armar sus 8
+    const pool = simMarketPool(r, lname, used, MGR_MARKET);
+    return { name: lname, ownerId: owner.id, ownerName: owner.name, teams: [], cache: {}, st: {}, fix: [], bank: simBudget(r, pool, SIM_TEAM), mkt: { pool, need: SIM_TEAM } };
+  }
   const elite = r.fset === 'elite', all = fPool(r);
   const ok = x => !used.has(key(x)) && !noKodigo({ name: lname }, x) && (!elite || eligLg(r, lname, x));
   let teams = simShuffle(all).filter(ok).slice(0, SIM_TEAM);
@@ -777,7 +886,7 @@ function simStart(r) {
   });
   const spare = simShuffle(all).filter(x => !used.has(key(x))); // suplentes para las bajas
   r.sim = {
-    id: Date.now(), gid: Date.now() + '-' + Math.floor(Math.random() * 1e6), jury: (!career && r.jury === 5 && n >= 6) ? 5 : 3, leagues, career, histAll: [],
+    id: Date.now(), gid: Date.now() + '-' + Math.floor(Math.random() * 1e6), jury: (!career && r.jury === 5 && n >= 6) ? 5 : 3, leagues, career, mgr: isMgr(r), histAll: [],
     order: simShuffle(leagues.map((_, i) => i)), // orden (al azar) en que se juega cada jornada de cada liga
     stage: 'league', ko: -1, intl: career ? null : simIntlInit(n, leagues), grp: null, lvotes: {},
     j: 1, li: 0, b: 0, round: 1, step: 'fmt', fmt: { votes: {} }, dbl: false, jn: SIM_TEAM - 1, cutJ: SIM_CUT_J, sched: simSched(false), battles: [], jurors: [], votes: {}, last: null, needRep: false,
@@ -919,7 +1028,7 @@ function simApply(r, w) {
   const vis = simVisits(cw, cl, W, L, mW, mL, isPq ? 1.5 : isLg ? 1 : 2.5); // en la internacional y en los piques las batallas se ven más
   const base = gain;
   gain += vis.vw;
-  S.leagues[lW].cache[W] += gain; S.leagues[lL].cache[L] += vis.vl;
+  simPay(S, lW, W, gain); simPay(S, lL, L, vis.vl);
   [[lW, W], [lL, L]].forEach(([l, n]) => { const g = S.leagues[l]; g.views = g.views || {}; g.views[n] = (g.views[n] || 0) + vis.v; });
   if (isLg) { // los puntos de la tabla solo se mueven en la liga; la internacional solo mueve caché
     const sw = S.leagues[lW].st[W], sl = S.leagues[lL].st[L];
@@ -940,7 +1049,7 @@ function simApply(r, w) {
 function simMvp(r) { // MVP de la jornada: cualquiera de los 8 freestylers de la liga, al azar. Cobra caché.
   const S = r.sim, li = S.order[S.li], lg = S.leagues[li];
   const n = simShuffle(lg.teams)[0];
-  lg.cache[n] += CACHE_MVP;
+  simPay(S, li, n, CACHE_MVP);
   (lg.mvps = lg.mvps || []).push({ j: S.j, n });
   S.mvp = { li, n, pay: CACHE_MVP };
 }
@@ -987,6 +1096,7 @@ function simPending(r) { // tras una desconexión / salida: repasar lo que estab
   if (S.step === 'fmt') return simFmtAuto(r);
   if (S.step === 'lpick') return simLpAuto(r);
   if (S.step === 'rr') return simRrAuto(r);
+  if (S.step === 'mkt') return simMktAuto(r);
   if (S.step === 'jpick') return simJpAuto(r);
   if (S.step === 'kopick') return simKoPickAuto(r);
   push(r);
@@ -1079,7 +1189,7 @@ function simFinish(r) { // fin: el campeón de la internacional se lleva el prem
   if (S.intl && S.stage === 'ko' && S.ko === 3 && S.battles[0] && S.battles[0].res) {
     const bt = S.battles[0], w = bt.res.w, l = w === 'a' ? bt.la : bt.lb, n = w === 'a' ? bt.a : bt.b;
     const bonus = S.intl.mini ? CACHE_MINI_CHAMP : CACHE_INTL_CHAMP;
-    S.leagues[l].cache[n] += bonus;
+    simPay(S, l, n, bonus);
     S.intl.champ = { l, n, bonus };
   }
   S.step = 'end'; push(r);
@@ -1185,11 +1295,26 @@ function simCareerGrow(r) { // Modo Carrera: al empezar la temporada se suman la
   r.players.forEach(p => simSyncRoster(r, p.id));
 }
 function simDeparture(r) { // al terminar la temporada: 20% de que UN freestyler (de cualquier liga) pida traspaso o se retire; no vuelve a ninguna liga
-  const S = r.sim; S.dep = null;
+  const S = r.sim; S.dep = null; S.musicOut = [];
+  S.leagues.forEach((lg, li) => (lg.music || []).slice().forEach(n => { // los dedicados a la música se van SEGURO al terminar la temporada (y no vuelven a ninguna liga)
+    if (!lg.teams.includes(n)) return;
+    (S.retired = S.retired || []).push(key(n));
+    let nw = null;
+    if (S.mgr) simMgrRelease(r, li, n); // Modo Manager: su plaza se ficha en el mercado
+    else { const x = simReplace(r, li, n, 'inherit'); if (!x) { S.retired.pop(); return; } nw = x.nw; }
+    S.keep = (S.keep || []).filter(k => k !== n);
+    S.musicOut.push({ n, league: lg.name, owner: lg.ownerName, nw });
+  }));
   if (Math.random() >= DEPART_CHANCE) return;
   const pick = simShuffle(S.leagues.flatMap((lg, li) => lg.teams.map(n => ({ li, n }))))[0]; if (!pick) return;
   const lg = S.leagues[pick.li], kind = Math.random() < 0.5 ? 'traspaso' : 'retiro';
   S.retired = S.retired || []; S.retired.push(key(pick.n)); // primero a la lista de retirados, para que no salga como sustituto ni vuelva
+  if (S.mgr) { // Modo Manager: su plaza queda libre y se ficha en el mercado de la nueva temporada
+    simMgrRelease(r, pick.li, pick.n);
+    S.keep = (S.keep || []).filter(n => n !== pick.n);
+    S.dep = { n: pick.n, kind, league: lg.name, owner: lg.ownerName, nw: null };
+    return;
+  }
   const x = simReplace(r, pick.li, pick.n, 'inherit'); // su plaza la ocupa otro freestyler al azar
   if (!x) { S.retired.pop(); return; }
   S.keep = (S.keep || []).filter(n => n !== pick.n);
@@ -1248,7 +1373,7 @@ function simWsJornada(r) {
 function simWsClose(r) { // acaba la World Series: el campeón de la tabla cobra el premio
   const S = r.sim, W = S.ws; W.done = true;
   const t = simWsTable(S)[0], m = W.members.find(x => x.n === t.n);
-  S.leagues[m.l].cache[m.n] += CACHE_WS_CHAMP;
+  simPay(S, m.l, m.n, CACHE_WS_CHAMP);
   W.champ = { l: m.l, n: m.n, bonus: CACHE_WS_CHAMP };
 }
 // ---- Draft entre ligas ----
@@ -1323,7 +1448,7 @@ function simDraftAuto(r) { // bots y desconectados juegan solos (también acepta
 const RR_MAX = 2;
 function simRrBegin(r) {
   const S = r.sim;
-  S.rr = { sel: {}, done: {}, log: [], applied: false };
+  S.rr = { sel: {}, done: {}, log: [], applied: false }; S.mgrOut = [];
   S.step = 'rr';
   simRrAuto(r);
 }
@@ -1337,20 +1462,22 @@ function simRrAuto(r) { // bots y desconectados se quedan con los suyos; cuando 
       const out = [];
       (R.sel[lg.ownerId] || []).forEach(old => {
         if (!lg.teams.includes(old)) return;
+        if (S.mgr) { simMgrRelease(r, li, old); out.push({ old, nw: null }); S.spare.push(old); return; } // Modo Manager: su plaza se ficha en el mercado
         const x = simReplace(r, li, old, 'inherit'); // los nuevos entran de cero (aún no se ha jugado nada)
         if (x) { out.push({ old, nw: x.nw }); S.spare.push(old); }
       });
       if (out.length) R.log.push({ pid: lg.ownerId, out });
     });
+    if (S.mgr) S.leagues.forEach((lg, li) => { if (!lg.mkt && lg.teams.length < SIM_TEAM) simMgrOpenMarket(r, li, SIM_TEAM - lg.teams.length); });
   }
   push(r);
 }
 
 // ---- Eventos al terminar una jornada ----
-function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler nuevo. mode: 'inherit' (hereda los puntos) | 'redo' (empieza de cero y rehace sus batallas)
+function simReplace(r, li, old, mode, pick) { // sustituye a «old» por un freestyler nuevo. mode: 'inherit' (hereda los puntos) | 'redo' (empieza de cero y rehace sus batallas)
   const S = r.sim, lg = S.leagues[li];
-  const used = new Set(S.leagues.flatMap(l => l.teams).map(key));
-  let nw = (S.spare || []).find(x => !used.has(key(x)) && !noKodigo(lg, x) && eligLg(r, lg.name, x));
+  const used = new Set(S.leagues.flatMap(l => [...l.teams, ...(l.mkt ? l.mkt.pool : [])]).map(key)); // (los del mercado tampoco)
+  let nw = pick || (S.spare || []).find(x => !used.has(key(x)) && !noKodigo(lg, x) && eligLg(r, lg.name, x));
   if (!nw) nw = simShuffle(fPool(r)).find(x => !used.has(key(x)) && !noKodigo(lg, x) && eligLg(r, lg.name, x));
   if (!nw) nw = simShuffle(fPool(r)).find(x => !used.has(key(x)) && !noKodigo(lg, x));
   if (!nw) return null;
@@ -1359,7 +1486,7 @@ function simReplace(r, li, old, mode) { // sustituye a «old» por un freestyler
   for (const k of S.sched.slice(0, S.j).flat()) { const pr = lg.fix[k].find(q => q.includes(old)); if (pr) prev.push(pr[0] === old ? pr[1] : pr[0]); } // rivales que ya había enfrentado
   lg.teams[lg.teams.indexOf(old)] = nw;
   delete lg.cache[old]; delete lg.st[old]; if (lg.views) delete lg.views[old];
-  lg.cache[nw] = CACHE_START;
+  lg.cache[nw] = S.mgr ? simPrice(r, nw) : CACHE_START;
   lg.st[nw] = mode === 'inherit' ? { ...oldSt } : { pts: 0, w: 0, wr: 0, lr: 0, l: 0 };
   if (lg.res) lg.res = mode === 'inherit' ? lg.res.map(p => p.map(n => n === old ? nw : n)) : lg.res.filter(p => !p.includes(old)); // hereda sus resultados (o los pierde si empieza de cero)
   lg.fix = lg.fix.map(rd => rd.map(pr => pr.map(n => n === old ? nw : n))); // el nuevo ocupa su sitio en todo el calendario (el pasado solo sirve para saber a quién enfrentó cada uno)
@@ -1394,7 +1521,7 @@ function simEventBegin(r) {
   if (target) { ev.pts = lg.st[target].pts; ev.cache = lg.cache[target]; ev.loss = Math.round(lg.cache[target] * POLEMICA_LOSS / 10) * 10; }
   if (type === 'viral') {
     const pr = simShuffle(simJBattles(S, lg))[0];
-    pr.forEach(n => { lg.cache[n] += CACHE_VIRAL; });
+    pr.forEach(n => simPay(S, li, n, CACHE_VIRAL));
     ev.res = { a: pr[0], b: pr[1], gain: CACHE_VIRAL }; ev.done = true;
   }
   if (type === 'veto') ev.opts = simVetoOpts(r, lg);
@@ -1415,17 +1542,43 @@ function simEventAuto(r) { // si decide un bot o alguien desconectado, se resuel
   const S = r.sim, ev = S.ev; if (!ev || ev.done) return push(r);
   const p = find(r, ev.pid);
   if (p && !p.bot && p.on) return push(r);
+  if (ev.pend) { if (!simEvBuyAuto(r)) push(r); return; }
   if (!simEventResolve(r, simEventRandomChoice(S, ev))) push(r);
 }
+function simEvMarketOpen(r, ev, old, mode) { // Modo Manager: el reemplazo se ficha en un mercado de 10 freestylers al azar
+  const S = r.sim, lg = S.leagues[ev.li], taken = new Set(S.leagues.flatMap(l => l.teams).map(key));
+  const pool = simMarketPool(r, lg.name, taken, MGR_REPL);
+  if (!pool.length) return false;
+  lg.bank = Math.max(lg.bank || 0, simCheapest(r, pool, 1)); // si no llega ni para el más barato, la liga recibe lo justo
+  ev.pend = { old, mode, pool };
+  simEventAuto(r);
+  return true;
+}
+function simEvBuy(r, n) {
+  const S = r.sim, ev = S.ev; if (!ev || ev.done || !ev.pend) return false;
+  const lg = S.leagues[ev.li], P = ev.pend, price = simPrice(r, n);
+  if (!P.pool.includes(n) || price > lg.bank) return false;
+  const x = simReplace(r, ev.li, P.old, P.mode, n); if (!x) return false;
+  lg.bank -= price;
+  ev.res = ev.type === 'baja' ? { old: P.old, nw: x.nw, mode: P.mode, redo: x.redo, pts: ev.pts, price } : { t: P.old, fired: true, nw: x.nw, price };
+  ev.pend = null; ev.done = true; push(r); return true;
+}
+function simEvBuyAuto(r) { // bot, desconectado o «que elija solo»: ficha uno de los 3 más caros que pueda pagar
+  const S = r.sim, ev = S.ev; if (!ev || !ev.pend) return false;
+  const lg = S.leagues[ev.li], opts = ev.pend.pool.filter(n => simPrice(r, n) <= lg.bank).sort((a, b) => simPrice(r, b) - simPrice(r, a));
+  return opts.length ? simEvBuy(r, simShuffle(opts.slice(0, 3))[0]) : false;
+}
 function simEventResolve(r, c) { // c: la decisión del jugador afectado
-  const S = r.sim, ev = S.ev; if (!ev || ev.done) return false;
+  const S = r.sim, ev = S.ev; if (!ev || ev.done || ev.pend) return false;
   const lg = S.leagues[ev.li], t = ev.target;
   if (ev.type === 'baja') {
     if (c !== 'inherit' && c !== 'redo') return false;
+    if (S.mgr) return simEvMarketOpen(r, ev, t, c);
     const x = simReplace(r, ev.li, t, c); if (!x) return false;
     ev.res = { old: t, nw: x.nw, mode: c, redo: x.redo, pts: ev.pts };
   } else if (ev.type === 'polemica') {
-    if (c === 'keep') { lg.cache[t] -= ev.loss; ev.res = { t, keep: true, loss: ev.loss }; }
+    if (c === 'keep') { simPay(S, ev.li, t, -ev.loss); ev.res = { t, keep: true, loss: ev.loss }; }
+    else if (c === 'fire' && S.mgr) return simEvMarketOpen(r, ev, t, 'inherit');
     else if (c === 'fire') { const x = simReplace(r, ev.li, t, 'inherit'); if (!x) return false; ev.res = { t, fired: true, nw: x.nw }; }
     else return false;
   } else if (ev.type === 'veto') {
@@ -1493,7 +1646,8 @@ function simAdvance(r) { // desde la pantalla de cierre (jEnd) a lo siguiente
 function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
   const S = r.sim; if (!S) return;
   if (S.step === 'draw') return simRrBegin(r);
-  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (new Set(S.leagues.map(l => l.ownerId)).size > 1) simDraftBegin(r); else simSeasonGo(r); } return; } // el draft necesita al menos 2 dueños distintos
+  if (S.step === 'rr') { if (S.rr && S.rr.applied) { if (S.mgr) return simMktBegin(r); if (new Set(S.leagues.map(l => l.ownerId)).size > 1) simDraftBegin(r); else simSeasonGo(r); } return; } // el draft necesita al menos 2 dueños distintos
+  if (S.step === 'mkt') { if (S.leagues.every(lg => !lg.mkt)) { if (new Set(S.leagues.map(l => l.ownerId)).size > 1) simDraftBegin(r); else simSeasonGo(r); } return; } // plantillas completas: draft entre ligas (si hay 2 o más dueños) y a jugar
   if (S.step === 'dft') { if (S.dft && S.dft.done) simSeasonGo(r); return; }
   if (S.step === 'kopick') { if (S.kp && S.kp.done) { S.kp.built = true; simKoBegin(r, 0); } return; }
   if (S.step === 'wsdraw') return simWsJornada(r);
@@ -1514,6 +1668,10 @@ function simNextStep(r) { // paso del anfitrión (botón «siguiente»)
 }
 function simWinner(r) { // gana el jugador cuyo freestyler tiene más caché al final (el campeón de la inter ya lleva su premio sumado)
   const S = r.sim; if (!S || S.step !== 'end') return null;
+  if (S.mgr) { // Modo Manager: gana el manager cuya liga acabó con más caché
+    const rk = S.leagues.map((lg, l) => { const t = simTable(lg)[0]; return { l, owner: lg.ownerId, ownerName: lg.ownerName, league: lg.name, n: t.n, c: lg.bank, pts: t.pts }; }).sort((x, y) => y.c - x.c || y.pts - x.pts || x.ownerName.localeCompare(y.ownerName));
+    return { ...rk[0], ranking: rk };
+  }
   const rank = S.leagues.map((lg, l) => {
     const n = lg.teams.slice().sort((a, b) => lg.cache[b] - lg.cache[a] || lg.st[b].pts - lg.st[a].pts || a.localeCompare(b))[0];
     return { l, owner: lg.ownerId, ownerName: lg.ownerName, league: lg.name, n, c: lg.cache[n], pts: lg.st[n].pts };
@@ -1529,17 +1687,19 @@ function simView(r) {
     stage: S.stage, ko: S.ko, ko0: simKo0(S), cutJ: S.cutJ, intlChamp: S.intl && S.intl.mini ? CACHE_MINI_CHAMP : CACHE_INTL_CHAMP, mk: !!S.mk, cacheStart: CACHE_START, streamerMult: STREAMER_MULT, musicMult: MUSIC_MULT, vetoes: (S.vetoes || []).map(v => ({ o: v.owner, t: v.target })), piqueCache: CACHE_PIQUE,
     jp: S.step === 'jpick' && S.jp ? { pid: S.jp.pid, opts: S.jp.opts, seats: S.jp.seats } : null,
     rr: S.step === 'rr' && S.rr ? { done: Object.keys(S.rr.done), applied: S.rr.applied, log: S.rr.applied ? S.rr.log : [], max: RR_MAX, total: r.players.length } : null,
+    mgr: !!S.mgr,
+    mkt: S.step === 'mkt' ? S.leagues.map((lg, li) => ({ li, name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, bank: lg.bank, need: lg.mkt ? lg.mkt.need : 0, team: lg.teams.map(n => ({ n, p: simPrice(r, n) })), pool: lg.mkt ? lg.mkt.pool.map(n => ({ n, p: simPrice(r, n), ok: simMktCan(r, lg, n) })).sort((a, b) => b.p - a.p || a.n.localeCompare(b.n)) : [] })) : null,
     career: !!S.career, cSeasons: CAREER_SEASONS, solo: simSolo(r, S), owners: new Set(S.leagues.map(l => l.ownerId)).size, histAll: S.histAll || [], hofNow: S.step === 'end' ? simHofEntry(r) : null,
     cnext: S.career && S.step === 'end' && S.season < CAREER_SEASONS ? { season: S.season + 1, add: CAREER_LEAGUES[S.season].filter(n => !S.leagues.some(l => l.name === n)), intl: S.season + 1 >= CAREER_INTL_SEASON, grp: S.season + 1 >= CAREER_INTL_SEASON && CAREER_LEAGUES[S.season].length >= SIM_GROUP_PLAYERS, mini: S.season + 1 < CAREER_INTL_SEASON && CAREER_LEAGUES[S.season].length === 2 } : null,
     mvp: S.step === 'jEnd' && S.stage === 'league' && !S.mk && S.mvp ? S.mvp : null,
     lp: S.step === 'lpick' && S.lp ? { order: S.lp.order, idx: S.lp.idx, picks: S.lp.picks, all: SIM_LEAGUES } : null,
     dft: S.step === 'dft' && S.dft ? { order: S.dft.order, idx: S.dft.idx, locked: S.dft.locked, log: S.dft.log, done: S.dft.done, rounds: DRAFT_ROUNDS, prop: S.dft.prop } : null,
-    ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, opts: S.ev.opts || null, mus: S.leagues[S.ev.li].music || [], j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
+    ev: S.step === 'ev' && S.ev ? { id: S.ev.id, type: S.ev.type, li: S.ev.li, pid: S.ev.pid, target: S.ev.target, done: S.ev.done, res: S.ev.res, pend: S.ev.pend ? { bank: S.leagues[S.ev.li].bank, pool: S.ev.pend.pool.map(n => ({ n, p: simPrice(r, n), ok: simPrice(r, n) <= S.leagues[S.ev.li].bank })).sort((a, b) => b.p - a.p || a.n.localeCompare(b.n)) } : null, opts: S.ev.opts || null, mus: S.leagues[S.ev.li].music || [], j: S.j, played: S.ev.played, pts: S.ev.pts, cache: S.ev.cache, loss: S.ev.loss } : null,
     intl: S.intl ? { drop: S.intl.drop || null, mini: !!S.intl.mini, q: S.intl.q.map(x => ({ l: x.l, n: x.n, via: x.via, g: x.g })), champ: S.intl.champ, lgs: S.intl.lgs, nl: S.intl.nl, grp: S.intl.grp, vres: S.step === 'lres' ? S.intl.vres : null } : null,
     grp: S.grp ? { g: S.grp.g, gj: S.grp.gj, q: GRP_Q, qr: GRP_Q_RES, groups: S.grp.groups.map(G => ({ name: G.name, done: G.done, table: simGrpTable(S, G) })) } : null,
     lvoted: S.step === 'lvote' ? Object.keys(S.lvotes) : [], lvoters: S.step === 'lvote' || S.step === 'lres' ? r.players.map(p => ({ id: p.id, name: p.name })) : [],
-    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [], boostJ: lg.boost ? lg.boost.j : 0, music: lg.music || [] })),
-    season: S.season, keep: S.season >= 2 ? S.keep : [], hist: S.hist, dep: S.dep || null,
+    leagues: S.leagues.map((lg, i) => ({ name: lg.name, owner: lg.ownerId, ownerName: lg.ownerName, teams: lg.teams, table: simTable(lg), fin: finLg(i), mvps: lg.mvps || [], boostJ: lg.boost ? lg.boost.j : 0, music: lg.music || [], bank: S.mgr ? lg.bank : null })),
+    season: S.season, keep: S.season >= 2 ? S.keep : [], hist: S.hist, dep: S.dep || null, musicOut: S.musicOut || [],
     kp: S.step === 'kopick' && S.kp ? (() => {
       const K = S.kp, cur = K.done ? null : K.order[K.idx], cc = x => x ? { l: x.l, n: x.n, c: S.leagues[x.l].cache[x.n] } : null;
       return { idx: K.idx, total: K.order.length, done: K.done, cur: cc(cur), pid: cur ? S.leagues[cur.l].ownerId : null, opts: cur ? simKpOpts(S, cur) : [], slots: K.slots.map(sl => sl.map(cc)),
@@ -1641,6 +1801,8 @@ io.on('connection', s => {
     if (['lobby', 'idle', 'sold'].includes(r.phase) && (d.auc === 'open' || d.auc === 'blind')) r.auc = d.auc;
     if (r.phase === 'lobby' && ['std', 'cast', 'tema', 'versus', 'best', 'xi', 'sim'].includes(d.gm)) r.gm = d.gm;
     if (r.phase === 'lobby' && (d.jury === 3 || d.jury === 5)) r.jury = d.jury;
+    if (r.phase === 'lobby' && typeof d.mgr === 'boolean') r.mgr = d.mgr; // Modo Manager (solo con Modo Carrera)
+    if (r.phase === 'lobby' && ['easy', 'normal', 'hard'].includes(d.mdif)) r.mdif = d.mdif; // dificultad del Modo Manager (presupuesto)
     if (r.phase === 'lobby' && typeof d.career === 'boolean') r.career = d.career && r.players.length <= CAREER_MAX_PLAYERS; // Modo Carrera (solo con Simulaciones)
     if ((r.gm === 'cast' || r.gm === 'tema') && r.mode !== 'k') r.gm = 'std'; // cast y amar tema solo existen con Frikirappers
     if ((r.gm === 'versus' || r.gm === 'sim') && r.mode !== 'f') r.gm = 'std'; // versus y simulaciones solo existen con Freestylers
@@ -1865,8 +2027,9 @@ io.on('connection', s => {
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;
     if (r.sim.step === 'fmt') { r.players.filter(p => !p.bot && p.on && !r.sim.fmt.votes[p.id]).forEach(p => { r.sim.fmt.votes[p.id] = Math.random() < 0.5 ? 'dbl' : 'nrm'; }); return simFmtAuto(r); }
     if (r.sim.step === 'lpick') { const L = r.sim.lp; if (L && L.idx < L.order.length) simLpPick(r, L.order[L.idx], null); return simLpAuto(r); }
-    if (r.sim.step === 'ev') { const ev = r.sim.ev; if (ev && !ev.done) simEventResolve(r, simEventRandomChoice(r.sim, ev)); return; }
+    if (r.sim.step === 'ev') { const ev = r.sim.ev; if (ev && ev.pend) { simEvBuyAuto(r); return; } if (ev && !ev.done) simEventResolve(r, simEventRandomChoice(r.sim, ev)); return; }
     if (r.sim.step === 'jpick') { r.sim.jp = null; r.sim.step = 'intro'; return push(r); } // el anfitrión da por elegido el jurado por defecto
+    if (r.sim.step === 'mkt') { r.sim.leagues.forEach((lg, li) => { while (lg.mkt && simMktBotBuy(r, li)); }); return push(r); } // que fichen solos los que falten
     if (r.sim.step === 'rr') { const R = r.sim.rr; if (R) r.players.forEach(p => { R.done[p.id] = true; }); return simRrAuto(r); }
     if (r.sim.step === 'kopick') { const K = r.sim.kp; if (K && !K.done) simKoPlace(r, simKpBot(r.sim, K.order[K.idx])); return simKoPickAuto(r); }
     if (r.sim.step === 'dft') { const D = r.sim.dft; if (D && D.prop) simDraftResolve(r, Math.random() < 0.5); else if (D && D.idx < D.order.length) simDraftRandom(r, D.order[D.idx]); return simDraftAuto(r); }
@@ -1914,7 +2077,7 @@ io.on('connection', s => {
     const R = r.sim.rr; if (!R || R.done[p.id]) return;
     const mine = r.sim.leagues.filter(l => l.ownerId === p.id); if (!mine.length) return;
     const teams = mine.flatMap(l => l.teams); // hasta RR_MAX despidos por cada liga que lleves
-    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => teams.includes(n) && !(r.sim.keep || []).includes(n)).slice(0, RR_MAX * mine.length);
+    const list = [...new Set(Array.isArray(cancel) ? cancel.map(String) : [])].filter(n => teams.includes(n) && !(r.sim.keep || []).includes(n)).slice(0, RR_MAX * mine.length); // RR_MAX por cada liga que lleves, repartidos como quieras entre ellas
     R.sel[p.id] = list; R.done[p.id] = true;
     simRrAuto(r);
   });
@@ -1924,6 +2087,16 @@ io.on('connection', s => {
     const x = K.order[K.idx]; if (r.sim.leagues[x.l].ownerId !== p.id) return;
     if (!Number.isInteger(slot) || !simKoPlace(r, slot)) return;
     simKoPickAuto(r);
+  });
+  s.on('simMktBuy', d => { // Modo Manager: el dueño ficha a un freestyler del mercado de su liga
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'mkt' || !d) return;
+    const li = +d.li, lg = r.sim.leagues[li]; if (!lg || lg.ownerId !== p.id) return;
+    if (simMktBuy(r, li, String(d.n))) simMktAuto(r);
+  });
+  s.on('simEvBuy', d => { // Modo Manager: el dueño ficha a su reemplazo del mercado de 10
+    const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim || r.sim.step !== 'ev' || !r.sim.ev || !d) return;
+    if (r.sim.ev.pid !== p.id) return;
+    simEvBuy(r, String(d.n));
   });
   s.on('simSeason2', () => { // el anfitrión abre la siguiente temporada al acabar la actual (la 2; en el Modo Carrera también la 3)
     const { r } = hostCtx(); if (!r || r.phase !== 'sim' || !r.sim) return;

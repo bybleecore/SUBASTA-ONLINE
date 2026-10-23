@@ -157,10 +157,18 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       <select id="jury"><option value="3">3 jurados</option><option value="5">5 jurados (solo con 6 o más jugadores)</option></select></div>
       <div id="careerBox" class="hide"><label for="career">Modo Carrera (Simulaciones)</label>
       <select id="career"><option value="0">Desactivado</option><option value="1">Activado: temporada 1 (FMS España) · 2 (+ Argentina) · 3 (+ México, Chile e Internacional con cortes) · 4 (+ Perú e Internacional con fase de grupos)</option></select></div>
+      <div id="aucDifBox">
       <label for="auc">Tipo de subasta</label>
       <select id="auc"><option value="open">Abierta (se puja en vivo)</option><option value="blind">A ciegas (oferta secreta única)</option></select>
       <label for="dif">Dificultad</label>
       <select id="dif"><option value="0">Difícil</option><option value="1">Imposible</option><option value="2">Vocales normales</option></select>
+      </div>
+      <div id="mgrBox" class="hide">
+      <label for="mgr">Tipo de carrera</label>
+      <select id="mgr"><option value="0">Clásico: cada liga recibe 8 freestylers sorteados</option><option value="1">Manager: mercado de 20 freestylers y caché por liga</option></select>
+      <label for="mdif">Dificultad</label>
+      <select id="mdif"><option value="easy">Fácil: presupuesto generoso</option><option value="normal">Normal</option><option value="hard">Difícil: presupuesto ajustado</option></select>
+      </div>
       <button id="addBot" class="alt">🤖 Añadir bot</button>
       <button id="start">Empezar partida</button>
     </div>
@@ -354,6 +362,8 @@ $('solo').onclick=()=>{
 $('addBot').onclick=()=>socket.emit('addBot');
 $('jury').onchange=()=>socket.emit('settings',{jury:+$('jury').value});
 $('career').onchange=()=>socket.emit('settings',{career:$('career').value==='1'});
+$('mgr').onchange=()=>socket.emit('settings',{mgr:$('mgr').value==='1'});
+$('mdif').onchange=()=>socket.emit('settings',{mdif:$('mdif').value});
 $('plLobby').onclick=e=>{const b=e.target.closest('[data-kick]');if(b)socket.emit('kick',b.dataset.kick)};
 socket.on('connect',()=>{
   if(localStorage.room){const n=localStorage.nm||'';socket.emit('join',{code:localStorage.room,name:n,tok},r=>after(r,n))}
@@ -472,7 +482,7 @@ function render(){
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
     $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
     $('juryBox').classList.toggle('hide',S.gm!=='sim'||!!S.career);setVal($('jury'),S.jury);
-    $('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
+    $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
     $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;
     $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
@@ -567,11 +577,11 @@ const SIM_LG_MS=1300,SIM_NAME_MS=420;
 function simLgExtras(V,li){ // efectos activos en la liga: streamer, música y jurados vetados
   const lg=V.leagues[li],nm=id=>id==='c'?'Favorito por caché':((V.leagues.find(x=>x.owner===id)||{}).ownerName||'?');
   const vt=(V.vetoes||[]).filter(v=>v.o===lg.owner).map(v=>nm(v.t));
-  return (lg.boostJ===V.j&&!V.mk?'<br><small>📺 Un streamer cubre esta jornada: ×'+V.streamerMult+' de caché y más visitas</small>':'')+(lg.music.length?'<br><small>🎵 Dedicados a la música (×'+V.musicMult+'): '+lg.music.map(esc).join(', ')+'</small>':'')+(vt.length?'<br><small>🚫 Jurados vetados: '+vt.map(esc).join(', ')+'</small>':'');
+  return (V.mgr&&lg.bank!=null?'<br><small>💰 Caché de la liga: <b>'+lg.bank+'$</b></small>':'')+(lg.boostJ===V.j&&!V.mk?'<br><small>📺 Un streamer cubre esta jornada: ×'+V.streamerMult+' de caché y más visitas</small>':'')+(lg.music.length?'<br><small>🎵 Dedicados a la música (×'+V.musicMult+'): '+lg.music.map(esc).join(', ')+'</small>':'')+(vt.length?'<br><small>🚫 Jurados vetados: '+vt.map(esc).join(', ')+'</small>':'');
 }
 const fmtV=v=>v>=1e6?(v/1e6).toFixed(1).replace('.0','')+'M':v>=1000?Math.round(v/1000)+'K':String(v);
 function simTable(t,hl,o){
-  let h='<div class="tblw'+(o&&o.lgn?' lgt" style="'+lgStyle(o.lgn):'')+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th><th title="Visitas acumuladas">👁</th></tr>';
+  let h='<div class="tblw'+(o&&o.lgn?' lgt" style="'+lgStyle(o.lgn):'')+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>'+(S.sim&&S.sim.mgr?'Valor':'Caché')+'</th><th title="Visitas acumuladas">👁</th></tr>';
   t.forEach((x,i)=>{
     const ch=o&&o.champ===x.n,ql=o&&o.q.includes(x.n);
     const cl=ch?'rainbow':ql?'gold':(hl&&hl.includes(x.n)?'hl':'');
@@ -581,7 +591,7 @@ function simTable(t,hl,o){
 }
 function simGrpHTML(V,gi){ // tabla de un grupo: dorado = clasificados a la Gran Final
   const G=V.grp.groups[gi],need=G.name==='Reservas'?V.grp.qr:V.grp.q;
-  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Liga</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Liga</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>'+(S.sim&&S.sim.mgr?'Valor':'Caché')+'</th></tr>';
   G.table.forEach((x,i)=>{
     const q=i<need,cl=G.done&&q?'gold':(q?'hl':'');
     h+='<tr'+(cl?' class="'+cl+'"':'')+'><td>'+(i+1)+'</td><td>'+(G.done&&q?'🎟 ':'')+esc(x.n)+'</td><td>'+esc(lgShort(V,x.lgi))+' <small>'+x.r+'.º</small></td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
@@ -675,7 +685,7 @@ function simVs(bt,res){
   const V=S.sim,intl=V&&V.stage&&V.stage!=='league';
   const tag=(l,rk)=>intl?esc(lgShort(V,l))+(rk?' · '+rk+'.º':'')+' · ':'';
   const wa=res&&res.w==='a',wb=res&&res.w==='b';
-  return '<div class="vs"><span class="'+(wa?'w':'')+'">'+esc(bt.a)+'<small>'+tag(bt.la,bt.ra)+bt.ca+'$ de caché</small></span><b>VS</b><span class="'+(wb?'w':'')+'">'+esc(bt.b)+'<small>'+tag(bt.lb,bt.rb)+bt.cb+'$ de caché</small></span></div>';
+  return '<div class="vs"><span class="'+(wa?'w':'')+'">'+esc(bt.a)+'<small>'+tag(bt.la,bt.ra)+(V.mgr?'valor '+bt.ca+'$':bt.ca+'$ de caché')+'</small></span><b>VS</b><span class="'+(wb?'w':'')+'">'+esc(bt.b)+'<small>'+tag(bt.lb,bt.rb)+(V.mgr?'valor '+bt.cb+'$':bt.cb+'$ de caché')+'</small></span></div>';
 }
 function simJurors(cur,voted){
   return cur.jurors.map((j,i)=>{
@@ -740,6 +750,12 @@ function evWheel(deg){
   const lbl=EV_ORDER.map((t,k)=>{const a=(k+0.5)*sl*Math.PI/180;return '<span class="wl" style="font-size:1.8rem;left:'+(50+34*Math.sin(a)).toFixed(1)+'%;top:'+(50-34*Math.cos(a)).toFixed(1)+'%">'+EV_INFO[t][0]+'</span>'}).join('');
   return '<div class="wheelw"><div class="ptr">▼</div><div id="wheel" class="wheel" style="background:'+bg+';transform:rotate('+deg+'deg)">'+lbl+'</div></div>';
 }
+function evMktHTML(ev,lg,itsMe){
+  const P=ev.pend;
+  let h='<p>🛒 <b>Mercado de reemplazo</b>: 10 freestylers al azar. Caché de la liga: <b>'+P.bank+'$</b></p><div>';
+  h+=P.pool.map(x=>itsMe?'<button class="sm'+(x.ok?'':' alt')+'"'+(x.ok?'':' disabled')+' data-evbuy="'+esc(x.n)+'">'+esc(x.n)+' · '+x.p+'$</button>':'<span class="chip">'+esc(x.n)+' <small>'+x.p+'$</small></span>').join('')+'</div>';
+  return h+(itsMe?'':'<p><small>Esperando a que '+esc(lg.ownerName)+' elija a su reemplazo…</small></p>');
+}
 function simEventHTML(V,host,spin){
   const ev=V.ev,lg=V.leagues[ev.li],k=EV_ORDER.indexOf(ev.type),info=EV_INFO[ev.type],itsMe=lg.owner===myId,R=ev.res,t=esc(ev.target||'');
   const deg=evAngle(k,ev.id,spin?Math.min(1,(performance.now()-evAnim.t0)/EV_MS):1);
@@ -749,16 +765,18 @@ function simEventHTML(V,host,spin){
   const wait='<p><small>Esperando a que decida '+esc(lg.ownerName)+'…</small></p>';
   if(ev.type==='baja'){
     if(!ev.done){
-      h+='<p><b>'+t+'</b> ('+ev.pts+' pts) se baja de la liga y otro freestyler lo reemplaza.</p>';
-      h+=itsMe?'<p><b>¿Cómo entra el reemplazo?</b></p><button class="vbtn" data-evc="inherit">📋 Entra con los puntos de '+t+' ('+ev.pts+' pts)</button><button class="vbtn alt" data-evc="redo">🔁 Empieza de cero y hace todas sus batallas otra vez ('+ev.played+' en una jornada de recuperación)</button>':wait;
-    }else h+='<p>🚪 <b>'+esc(R.old)+'</b> se baja. <b>'+esc(R.nw)+'</b> entra en su lugar con '+V.cacheStart+'$ de caché'+(R.mode==='inherit'?' y los '+R.pts+' puntos de '+esc(R.old)+'.':' y empieza de cero: jugará en una jornada de recuperación las '+R.redo+' batallas que ya se habían disputado.')+'</p>';
+      h+='<p><b>'+t+'</b> ('+ev.pts+' pts) se baja de la liga'+(V.mgr?' y hay que fichar a otro en un mercado de 10.':' y otro freestyler lo reemplaza.')+'</p>';
+      if(ev.pend)h+=evMktHTML(ev,lg,itsMe);
+      else h+=itsMe?'<p><b>¿Cómo entra el reemplazo?</b></p><button class="vbtn" data-evc="inherit">📋 Entra con los puntos de '+t+' ('+ev.pts+' pts)</button><button class="vbtn alt" data-evc="redo">🔁 Empieza de cero y hace todas sus batallas otra vez ('+ev.played+' en una jornada de recuperación)</button>':wait;
+    }else h+='<p>🚪 <b>'+esc(R.old)+'</b> se baja. <b>'+esc(R.nw)+'</b> entra en su lugar'+(V.mgr?' (fichado por '+R.price+'$ del caché de la liga)':' con '+V.cacheStart+'$ de caché')+(R.mode==='inherit'?' y los '+R.pts+' puntos de '+esc(R.old)+'.':' y empieza de cero: jugará en una jornada de recuperación las '+R.redo+' batallas que ya se habían disputado.')+'</p>';
   }else if(ev.type==='viral'){
     h+='<p>📈 ¡La batalla <b>'+esc(R.a)+'</b> vs <b>'+esc(R.b)+'</b> de la jornada '+ev.j+' se hace viral! Cada uno gana <b>+'+R.gain+'$</b> de caché.</p>';
   }else if(ev.type==='polemica'){
     if(!ev.done){
-      h+='<p><b>'+t+'</b> ('+ev.cache+'$ de caché, '+ev.pts+' pts) ha montado una polémica en esta liga.</p>';
-      h+=itsMe?'<p><b>¿Qué haces?</b></p><button class="vbtn" data-evc="keep">💸 No pagarle y mantenerlo en la liga (pierde '+ev.loss+'$ de caché)</button><button class="vbtn alt" data-evc="fire">🚪 Echarlo: entra otro con sus '+ev.pts+' puntos y '+V.cacheStart+'$ de caché</button>':wait;
-    }else h+=R.keep?'<p>💸 No le pagas a <b>'+esc(R.t)+'</b>, pero lo mantienes en la liga: pierde <b>−'+R.loss+'$</b> de caché.</p>':'<p>🚪 Echas a <b>'+esc(R.t)+'</b>. <b>'+esc(R.nw)+'</b> entra en su lugar con sus puntos y '+V.cacheStart+'$ de caché.</p>';
+      h+='<p><b>'+t+'</b> ('+(V.mgr?'valor '+ev.cache+'$':ev.cache+'$ de caché')+', '+ev.pts+' pts) ha montado una polémica en esta liga.</p>';
+      if(ev.pend)h+=evMktHTML(ev,lg,itsMe);
+      else h+=itsMe?'<p><b>¿Qué haces?</b></p><button class="vbtn" data-evc="keep">💸 No pagarle y mantenerlo en la liga (pierde '+ev.loss+'$ de caché)</button><button class="vbtn alt" data-evc="fire">🚪 Echarlo: '+(V.mgr?'fichas a otro de un mercado de 10 y entra con sus '+ev.pts+' puntos':'entra otro con sus '+ev.pts+' puntos y '+V.cacheStart+'$ de caché')+'</button>':wait;
+    }else h+=R.keep?'<p>💸 No le pagas a <b>'+esc(R.t)+'</b>, pero lo mantienes en la liga: pierde <b>−'+R.loss+'$</b> de caché.</p>':'<p>🚪 Echas a <b>'+esc(R.t)+'</b>. <b>'+esc(R.nw)+'</b> entra en su lugar con sus puntos'+(V.mgr?' (fichado por '+R.price+'$ del caché de la liga).':' y '+V.cacheStart+'$ de caché.')+'</p>';
   }else if(ev.type==='veto'){
     if(!ev.done){
       h+='<p>Puedes vetar a un jurado: <b>no podrá votar en las batallas de tu liga el resto de la temporada</b> (también vale el voto del favorito por caché).</p>';
@@ -768,9 +786,9 @@ function simEventHTML(V,host,spin){
     h+='<p>📺 Un streamer cubrirá la <b>jornada '+R.j+'</b> de '+esc(lg.name)+': sus freestylers ganan <b>×'+R.mult+'</b> de caché y sus batallas tendrán más visitas.</p>';
   }else if(ev.type==='music'){
     if(!ev.done){
-      h+='<p>Elige a un freestyler de tu liga para que se dedique a la música: atraerá más visitas y cobrará <b>×'+V.musicMult+'</b> de caché el resto de la temporada.</p>';
+      h+='<p>Elige a un freestyler de tu liga para que se dedique a la música: atraerá más visitas y cobrará <b>×'+V.musicMult+'</b> de caché el resto de la temporada, pero <b>al terminarla dejará el freestyle seguro</b> y no volverá a ninguna liga.</p>';
       h+=itsMe?lg.teams.filter(n=>!ev.mus.includes(n)).map(n=>'<button class="vbtn" data-evmu="'+esc(n)+'">🎵 '+esc(n)+'</button>').join(''):wait;
-    }else h+='<p>🎵 <b>'+esc(R.n)+'</b> se dedica a la música: ×'+V.musicMult+' de caché y más visitas el resto de la temporada.</p>';
+    }else h+='<p>🎵 <b>'+esc(R.n)+'</b> se dedica a la música: ×'+V.musicMult+' de caché y más visitas el resto de la temporada. 🎤 Al terminarla se marchará del freestyle seguro.</p>';
   }else if(ev.type==='pique'){
     if(!ev.done){
       h+='<p>Puedes calentar las cosas con una liga contraria: una exhibición de uno de tus freestylers contra uno de los suyos (al azar). El ganador gana <b>+'+V.piqueCache+'$</b> de caché.</p>';
@@ -781,6 +799,20 @@ function simEventHTML(V,host,spin){
       }else h+=wait;
     }else h+=R.pass?'<p>🕊 Se queda todo en paz: no hay pique.</p>':'<p>🌶 ¡Pique! <b>'+esc(R.pq.a)+'</b> <small>('+esc(lgShort(V,R.pq.la))+')</small> contra <b>'+esc(R.pq.b)+'</b> <small>('+esc(lgShort(V,R.pq.lb))+')</small>.</p>';
   }
+  return h;
+}
+/* ---- Modo Manager: mercado de fichajes ---- */
+function simMktHTML(V,host){
+  let h='<h2>🛒 Mercado de fichajes</h2><p><small>Una liga nueva tiene un mini mercado de 20 freestylers al azar y un caché para fichar y completar su plantilla de 8; si solo hay que cubrir plazas (despidos, retiros), el mercado es de 10. Los Legendarios y Secretos casi nunca aparecen. Los mejores cuestan mucho, así que no alcanza para todos. Si otra liga ficha a uno, desaparece de tu mercado. Lo que ganen tus freestylers (batallas, visitas, MVP…) se suma al caché de tu liga y sirve para fichar mejor en la próxima temporada. Los botones en gris son los que no puedes pagar sin dejarte sin caché para completar la plantilla. Después de fichar hay draft entre ligas (si hay 2 o más dueños).</small></p>';
+  V.mkt.forEach(m=>{
+    const mine=m.owner===myId;
+    h+='<div class="card lgcard'+(mine?' win':'')+'" style="'+lgStyle(m.name)+'"><b>'+lgBadge(m.name)+'</b> · '+esc(m.ownerName)+(mine?' (tú)':'')+'<br>💰 Caché de la liga: <b>'+m.bank+'$</b> · '+(m.need?'faltan <b>'+m.need+'</b> fichaje'+(m.need===1?'':'s'):'✅ plantilla completa')+'<div style="margin-top:6px">'+(m.team.length?m.team.map(x=>'<span class="chip">'+esc(x.n)+' <small>'+x.p+'$</small></span>').join(''):'<small>Plantilla vacía</small>')+'</div>';
+    if(m.need)h+='<div style="margin-top:8px"><small>Mercado ('+m.pool.length+')</small></div><div>'+m.pool.map(x=>mine?'<button class="sm'+(x.ok?'':' alt')+'"'+(x.ok?'':' disabled')+' data-mbuy="'+esc(x.n)+'" data-mli="'+m.li+'">'+esc(x.n)+' · '+x.p+'$</button>':'<span class="chip">'+esc(x.n)+' <small>'+x.p+'$</small></span>').join('')+'</div>';
+    h+='</div>';
+  });
+  const all=V.mkt.every(m=>!m.need);
+  if(all)h+=host?'<button data-sim="next">'+(V.owners>1?'🔀 Ir al draft entre ligas':'▶ Empezar la temporada '+V.season)+'</button>':'<small>Esperando al anfitrión…</small>';
+  else h+=host?'<button class="alt sm" data-sim="skip">Que fichen solos (al azar) los que falten</button>':'<small>⏳ Esperando a que todos completen su plantilla…</small>';
   return h;
 }
 /* ---- draft entre ligas ---- */
@@ -808,7 +840,7 @@ function simDraftHTML(V,host){
 }
 function simWsHTML(V){ // tabla de la World Series
   const W=V.ws;
-  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Liga</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>Caché</th></tr>';
+  let h='<div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th>Liga</th><th>Pts</th><th title="Victorias">V</th><th title="Victorias tras réplica">VR</th><th title="Derrotas tras réplica">DR</th><th title="Derrotas">D</th><th>'+(S.sim&&S.sim.mgr?'Valor':'Caché')+'</th></tr>';
   W.table.forEach((x,i)=>{
     const ch=W.done&&W.champ&&W.champ.n===x.n;
     h+='<tr'+(ch?' class="rainbow"':'')+'><td>'+(i+1)+'</td><td>'+(ch?'🌈 ':'')+esc(x.n)+'</td><td>'+esc(lgShort(V,x.lgi))+'</td><td><b>'+x.pts+'</b></td><td>'+x.w+'</td><td>'+x.wr+'</td><td>'+x.lr+'</td><td>'+x.l+'</td><td>'+x.c+'$</td></tr>';
@@ -895,20 +927,23 @@ function renderSim(m,host){
       return mine?'<button class="vbtn" data-lpick="'+esc(n)+'">'+lgTh(n).f+' '+esc(n)+'</button>':'<div class="pl"><span>'+esc(n)+'</span><small>libre</small></div>';
     }).join('');
     if(host&&!mine)h+='<button class="alt sm" data-sim="skip">Que elija solo (al azar)</button>';
+  }else if(V.step==='mkt'&&V.mkt){
+    h+=simMktHTML(V,host);
   }else if(V.step==='rr'&&V.rr){
     const R=V.rr,done=R.done.includes(myId),mylg=V.leagues.filter(l=>l.owner===myId),rrMax=R.max*Math.max(1,mylg.length);
     const nm=id=>{const l=V.leagues.find(x=>x.owner===id);return l?l.ownerName:'?'};
-    h+=V.career&&V.season>=2?'<h2>✂️ Temporada '+V.season+' · Despidos</h2><p><small>Puedes despedir hasta '+R.max+' freestylers por cada liga que lleves: se sustituyen por otros al azar. 🏆 Los campeones de la temporada anterior se mantienen y no se pueden despedir.'+(V.owners>1?' Después hay 1 draft de intercambio por jugador.':'')+(V.ws?' Esta temporada se suma la 🌎 World Series.':'')+'</small></p>':V.season===2?'<h2>✂️ Temporada 2 · Despidos</h2><p><small>Puedes despedir hasta '+R.max+' freestylers para cambiar tu liga: se sustituyen por otros al azar. 🏆 Los campeones de la temporada 1 se mantienen y no se pueden despedir. Después hay 1 draft de intercambio. Esta temporada se suma la 🌎 World Series con los 10 freestylers mejor pagados de todas las ligas.</small></p>':'<h2>✂️ Cancelar contratos</h2><p><small>Antes del draft puedes cancelar hasta '+R.max+' contratos de los freestylers que te tocaron: se sustituyen por otros al azar (que no sean los mismos).</small></p>';
-    if(V.dep)h+='<div class="banner">'+(V.dep.kind==='retiro'?'🎤 <b>'+esc(V.dep.n)+'</b> se retira del freestyle y no volverá a ninguna liga.':'✈️ <b>'+esc(V.dep.n)+'</b> pide el traspaso y se marcha: no volverá a ninguna liga.')+' <b>'+esc(V.dep.nw)+'</b> ocupa su plaza en la '+esc(V.dep.league)+'.</div>';
+    h+=V.career&&V.season>=2?'<h2>✂️ Temporada '+V.season+' · Despidos</h2><p><small>Puedes despedir hasta '+R.max+' freestylers por cada liga que lleves: '+(V.mgr?'su plaza se ficha después en un mercado de 10 freestylers al azar con el caché de tu liga.':'se sustituyen por otros al azar.')+' 🏆 Los campeones de la temporada anterior se mantienen y no se pueden despedir.'+(V.owners>1?' Después hay 1 draft de intercambio por jugador.':'')+(V.ws?' Esta temporada se suma la 🌎 World Series.':'')+'</small></p>':V.season===2?'<h2>✂️ Temporada 2 · Despidos</h2><p><small>Puedes despedir hasta '+R.max+' freestylers para cambiar tu liga: se sustituyen por otros al azar. 🏆 Los campeones de la temporada 1 se mantienen y no se pueden despedir. Después hay 1 draft de intercambio. Esta temporada se suma la 🌎 World Series con los 10 freestylers mejor pagados de todas las ligas.</small></p>':'<h2>✂️ Cancelar contratos</h2><p><small>Antes del draft puedes cancelar hasta '+R.max+' contratos de los freestylers que te tocaron: se sustituyen por otros al azar (que no sean los mismos).</small></p>';
+    if(V.dep)h+='<div class="banner">'+(V.dep.kind==='retiro'?'🎤 <b>'+esc(V.dep.n)+'</b> se retira del freestyle y no volverá a ninguna liga.':'✈️ <b>'+esc(V.dep.n)+'</b> pide el traspaso y se marcha: no volverá a ninguna liga.')+(V.dep.nw?' <b>'+esc(V.dep.nw)+'</b> ocupa su plaza en la '+esc(V.dep.league)+'.':' Su plaza en la '+esc(V.dep.league)+' se cubre en el mercado de 10.')+'</div>';
+    (V.musicOut||[]).forEach(m=>{h+='<div class="banner">🎵 <b>'+esc(m.n)+'</b> deja el freestyle para dedicarse a la música y no volverá a ninguna liga.'+(m.nw?' <b>'+esc(m.nw)+'</b> ocupa su plaza en la '+esc(m.league)+'.':' Su plaza en la '+esc(m.league)+' se cubre en el mercado.')+'</div>'});
     if(!R.applied){
       if(!done&&mylg.length){
-        h+='<p><b>Toca los que quieras cancelar ('+rrSel.length+'/'+rrMax+')</b></p>'+mylg.flatMap(l=>l.teams).map(n=>V.keep.includes(n)?'<span class="chip">🏆 '+esc(n)+'</span>':'<button class="sm'+(rrSel.includes(n)?' sel':' alt')+'" data-rrsel="'+esc(n)+'">'+esc(n)+'</button>').join('');
+        h+='<p><b>Toca los que quieras cancelar ('+rrSel.length+'/'+rrMax+')</b>'+(mylg.length>1?'<br><small>Los '+rrMax+' despidos son compartidos: los repartes como quieras entre tus ligas.</small>':'')+'</p>'+mylg.map(l=>{return '<div class="card lgcard" style="'+lgStyle(l.name)+'"><b>'+lgBadge(l.name)+'</b><div style="margin-top:6px">'+l.teams.map(n=>V.keep.includes(n)?'<span class="chip">🏆 '+esc(n)+'</span>':'<button class="sm'+(rrSel.includes(n)?' sel':' alt')+'" data-rrsel="'+esc(n)+'">'+esc(n)+'</button>').join('')+'</div></div>'}).join('');
         h+='<p><button data-rrgo="1"'+(rrSel.length?'':' disabled')+'>Cancelar '+(rrSel.length||'')+' contrato'+(rrSel.length===1?'':'s')+'</button><button class="alt" data-rrgo="0">Quedarme con todos</button></p>';
       }else h+='<p><small>✅ Ya has decidido. Esperando a los demás ('+R.done.length+'/'+(R.total||V.leagues.length)+')…</small></p>';
       if(host)h+='<button class="alt sm" data-sim="skip">Dar por decidido a quien falte</button>';
     }else{
-      h+=R.log.length?R.log.map(x=>'<div class="card"><b>'+esc(nm(x.pid))+'</b> cancela:'+x.out.map(o=>'<div>✂️ '+esc(o.old)+' → <b>'+esc(o.nw)+'</b></div>').join('')+'</div>').join(''):'<div class="banner">Nadie ha cancelado contratos</div>';
-      h+=host?nextBtn(V.owners>1?'🔀 Ir al draft entre ligas':'Empezar la temporada'):'<small>Esperando al anfitrión…</small>';
+      h+=R.log.length?R.log.map(x=>'<div class="card"><b>'+esc(nm(x.pid))+'</b> cancela:'+x.out.map(o=>'<div>✂️ '+esc(o.old)+(o.nw?' → <b>'+esc(o.nw)+'</b>':' <small>(su plaza se ficha en el mercado)</small>')+'</div>').join('')+'</div>').join(''):'<div class="banner">Nadie ha cancelado contratos</div>';
+      h+=host?nextBtn(V.mgr?'🛒 Ir al mercado':V.owners>1?'🔀 Ir al draft entre ligas':'Empezar la temporada'):'<small>Esperando al anfitrión…</small>';
     }
   }else if(V.step==='dft'&&V.dft){
     h+=simDraftHTML(V,host);
@@ -1007,7 +1042,7 @@ function renderSim(m,host){
     }else{
       const W=res.w==='a'?bt.a:bt.b,Lz=res.w==='a'?bt.b:bt.a;
       h+='<div class="banner pop" style="animation-delay:'+dl+'s">🏆 '+esc(W)+' gana'+(res.rep?' tras réplica':'')+'</div>'+
-        '<p>'+(res.lg?esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>':'')+'👁 <b>'+fmtV(res.visits)+'</b> visitas en esta batalla<br>💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b> <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 Caché de '+esc(Lz)+': <b>+'+res.vl+'$</b> <small>(visitas)</small>'+
+        '<p>'+(res.lg?esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>':'')+'👁 <b>'+fmtV(res.visits)+'</b> visitas en esta batalla'+(V.mgr?'<br>💰 La liga de '+esc(W)+' gana <b>+'+res.gain+'$</b> de caché <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 La liga de '+esc(Lz)+' gana <b>+'+res.vl+'$</b> <small>(visitas)</small>':'<br>💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b> <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 Caché de '+esc(Lz)+': <b>+'+res.vl+'$</b> <small>(visitas)</small>')+
         (V.stage==='cut1'||V.stage==='cut2'?'<br>🎟 '+esc(W)+' clasifica a la Gran Final':'')+
         (V.stage==='ko'&&V.ko===3?'<br>🌍 ¡'+esc(W)+' es campeón de la '+(V.intl&&V.intl.mini?'Mini Internacional':'FMS Internacional')+'! Al cerrar se lleva +'+V.intlChamp+'$ de caché':'')+'</p>';
       h+=nextBtn(cur.b<cur.battles.length-1?'Siguiente batalla':(isLg?'Cerrar la jornada':'Ver resultados'));
@@ -1039,18 +1074,19 @@ function renderSim(m,host){
     if(ch)h+='<div class="banner pop">🌍 Campeón de la '+(V.intl.mini?'Mini Internacional':'FMS Internacional')+': '+esc(ch.n)+' ('+esc(lgShort(V,ch.l))+') · +'+ch.bonus+'$ de caché</div>';
     const W=V.winner;
     if(W){
-      h+='<div class="banner pop" style="animation-delay:.3s">🏆 Gana la subasta: '+esc(W.ownerName)+(W.owner===myId?' (tú)':'')+'</div><p>Su freestyler con más caché: <b>'+esc(W.n)+'</b> · '+W.c+'$ · '+esc(W.league)+'</p>';
-      h+='<h2>Clasificación final por caché</h2>'+W.ranking.map((x,i)=>'<div class="pl'+(i===0?' win':'')+'"><span>'+(i+1)+'. <b>'+esc(x.ownerName)+'</b>'+(x.owner===myId?' (tú)':'')+' · '+esc(x.n)+(V.career?' <small>('+esc(x.league)+')</small>':'')+'</span><small>'+x.c+'$</small></div>').join('');
+      h+='<div class="banner pop" style="animation-delay:.3s">🏆 '+(V.mgr?'Manager con más caché':'Gana la subasta')+': '+esc(W.ownerName)+(W.owner===myId?' (tú)':'')+'</div>'+(V.mgr?'<p>Caché de su liga: <b>'+W.c+'$</b> · '+esc(W.league)+'</p>':'<p>Su freestyler con más caché: <b>'+esc(W.n)+'</b> · '+W.c+'$ · '+esc(W.league)+'</p>');
+      h+='<h2>Clasificación final por caché'+(V.mgr?' de liga':'')+'</h2>'+W.ranking.map((x,i)=>'<div class="pl'+(i===0?' win':'')+'"><span>'+(i+1)+'. <b>'+esc(x.ownerName)+'</b>'+(x.owner===myId?' (tú)':'')+(V.mgr?'':' · '+esc(x.n))+(V.career?' <small>('+esc(x.league)+')</small>':'')+'</span><small>'+x.c+'$</small></div>').join('');
     }
     h+='<h2>Campeones de liga</h2>';
     V.leagues.forEach((lg,i)=>{
       const c=lg.table[0];
       h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+(lg.mvps.length?'<br>⭐ MVPs de jornada: '+Object.entries(lg.mvps.reduce((a,m)=>{a[m.n]=(a[m.n]||0)+1;return a},{})).map(([n,k])=>esc(n)+(k>1?' ×'+k:'')).join(', '):'')+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
     });
+    if(V.cnext||(!V.career&&V.season===1)){const go=V.leagues.flatMap(l=>(l.music||[]).map(n=>esc(n)+' <small>('+esc(l.name.replace('FMS ',''))+')</small>'));if(go.length)h+='<div class="banner">🎵 Se dedican a la música y dejarán el freestyle al empezar la próxima temporada: <b>'+go.join(', ')+'</b></div>'}
     h+=host?(V.cnext?'<h2>🏆 Modo Carrera · ¿Temporada '+V.cnext.season+'?</h2><p><small>Se suma'+(V.cnext.add.length>1?'n':'')+' '+V.cnext.add.map(n=>lgTh(n).f+' '+esc(n)).join(' y ')+(V.cnext.mini?' y una 🌍 Mini Internacional (los 4 primeros de cada liga juegan cuartos, semis y final)':'')+(V.cnext.intl&&V.cnext.grp?' y la 🌍 FMS Internacional con fase de grupos (los 5 primeros de cada liga se reparten en 5 grupos y los 6.º forman Reservas; clasifican 16 a la Gran Final)':'')+(V.cnext.intl&&!V.cnext.grp?' y la 🌍 FMS Internacional con cortes clasificatorios (los 4 primeros de cada liga se cruzan tras la jornada '+V.cutJ+' y al acabar las ligas; los 16 clasificados juegan la Gran Final)':'')+'. Las ligas anteriores conservan sus freestylers y su caché; cada jugador puede despedir hasta 2 freestylers por liga que lleve y los campeones se mantienen.</small></p><button data-sim="s2">🏁 Jugar la temporada '+V.cnext.season+'</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':V.season===1?'<h2>🏁 ¿Temporada 2?</h2><p><small>Cada jugador puede despedir hasta 2 freestylers y hay 1 draft de intercambio. Los campeones se mantienen (no se pueden despedir ni draftear). El caché se conserva y se suma la 🌎 World Series con los 10 freestylers mejor pagados de todas las ligas.</small></p><button data-sim="s2">🏁 Jugar la temporada 2</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':'<button data-sim="again">Jugar otra vez</button>'):'<small>Esperando al anfitrión…</small>';
   }
-  if(V.step!=='draw'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr'&&V.step!=='fmt'&&V.step!=='kopick')h+=simPanel(V);
-  if(V.career)h='<div class="box"><b>🏆 Modo Carrera · Temporada '+V.season+' de '+V.cSeasons+'</b><br><small>'+V.leagues.map(l=>lgTh(l.name).f+' '+esc(l.name.replace('FMS ',''))).join(' · ')+(V.intl?(V.intl.mini?' · 🌍 Mini Internacional':' · 🌍 Internacional'):'')+(V.solo?' · jurado único: tú':'')+'</small></div>'+h;
+  if(V.step!=='draw'&&V.step!=='mkt'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr'&&V.step!=='fmt'&&V.step!=='kopick')h+=simPanel(V);
+  if(V.career)h='<div class="box"><b>🏆 Modo Carrera · Temporada '+V.season+' de '+V.cSeasons+'</b><br><small>'+V.leagues.map(l=>lgTh(l.name).f+' '+esc(l.name.replace('FMS ',''))+(V.mgr&&l.bank!=null?' <b>💰'+l.bank+'$</b>':'')).join(' · ')+(V.intl?(V.intl.mini?' · 🌍 Mini Internacional':' · 🌍 Internacional'):'')+(V.solo?' · jurado único: tú':'')+'</small></div>'+h;
   box.innerHTML=h;
   if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
@@ -1065,6 +1101,8 @@ $('simBox').onclick=e=>{
   else if(b.dataset.rrsel!==undefined){const n=b.dataset.rrsel;const rrCap=(S.sim.rr?S.sim.rr.max:2)*Math.max(1,S.sim.leagues.filter(l=>l.owner===myId).length);rrSel=rrSel.includes(n)?rrSel.filter(x=>x!==n):(rrSel.length<rrCap?[...rrSel,n]:rrSel);renderSim(me(),S.hostId===myId)}
   else if(b.dataset.jpsel!==undefined){const id=b.dataset.jpsel;jpSel=jpSel.includes(id)?jpSel.filter(x=>x!==id):(jpSel.length<S.sim.jp.seats?[...jpSel,id]:jpSel);renderSim(me(),S.hostId===myId)}
   else if(b.dataset.jpgo!==undefined){socket.emit('simJury',jpSel);jpSel=[]}
+  else if(b.dataset.evbuy!==undefined)socket.emit('simEvBuy',{n:b.dataset.evbuy});
+  else if(b.dataset.mbuy!==undefined)socket.emit('simMktBuy',{li:+b.dataset.mli,n:b.dataset.mbuy});
   else if(b.dataset.rrgo!==undefined){socket.emit('simRr',b.dataset.rrgo==='1'?rrSel:[]);rrSel=[]}
   else if(b.dataset.dans!==undefined)socket.emit('simDraftAns',b.dataset.dans==='1');
   else if(b.dataset.lpick!==undefined)socket.emit('simLeaguePick',b.dataset.lpick);
