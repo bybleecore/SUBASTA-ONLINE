@@ -1092,7 +1092,7 @@ function renderSim(m,host){
     h+='<h2>Batalla '+(cur.b+1)+' de '+cur.battles.length+(cur.round===2?' · 🔁 RÉPLICA':'')+'</h2><div class="card">'+simVs(bt)+'</div>';
     if(cur.round===2)h+='<p><small>Ronda extra: ya no vale votar réplica, hay que elegir a uno.</small></p>';
     if(seat>=0&&!cur.voted.includes(seat)){
-      h+='<p><b>Eres jurado. ¿Quién ha ganado?</b></p><button class="vbtn" data-simvote="a">'+esc(bt.a)+'</button>'+(cur.round===1&&cur.jurors.length>1?'<button class="vbtn alt" data-simvote="r">🔁 Réplica</button>':'')+'<button class="vbtn" data-simvote="b">'+esc(bt.b)+'</button>';
+      h+='<p><b>Eres jurado. ¿Quién ha ganado?</b></p><button class="vbtn" data-simvote="a">'+esc(bt.a)+'</button>'+(cur.round===1?'<button class="vbtn alt" data-simvote="r">🔁 Réplica</button>':'')+'<button class="vbtn" data-simvote="b">'+esc(bt.b)+'</button>';
     }else if(seat>=0){
       h+='<p>✔ Voto enviado. Esperando a los demás jurados…</p>';
     }else if(isLg?own(cur.lg):(own(bt.la)||own(bt.lb))){

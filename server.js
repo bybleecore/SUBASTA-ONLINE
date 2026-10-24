@@ -993,8 +993,8 @@ function simAutoVotes(r) {
   S.jurors.forEach((j, i) => {
     if (i in S.votes) return;
     if (j.k === 'c') S.votes[i] = bt.fav;
-    else if (j.k === 'v') S.votes[i] = simAi(ca, cb, S.round === 1 && S.jurors.length > 1);
-    else { const q = find(r, j.id); if (!q || q.bot || !q.on) S.votes[i] = simAi(ca, cb, S.round === 1 && S.jurors.length > 1); }
+    else if (j.k === 'v') S.votes[i] = simAi(ca, cb, S.round === 1);
+    else { const q = find(r, j.id); if (!q || q.bot || !q.on) S.votes[i] = simAi(ca, cb, S.round === 1); }
   });
 }
 function simOpenVote(r) {
@@ -2090,7 +2090,7 @@ io.on('connection', s => {
   s.on('simVote', c => {
     const { r, p } = ctxOf(); if (!r || !p || r.phase !== 'sim' || !r.sim) return;
     const S = r.sim; if (S.step !== 'vote') return;
-    if (!['a', 'b', 'r'].includes(c) || (c === 'r' && (S.round === 2 || S.jurors.length === 1))) return; // con 1 solo jurado no hay réplica
+    if (!['a', 'b', 'r'].includes(c) || (c === 'r' && S.round === 2)) return; // en la ronda extra ya no vale la réplica
     const i = S.jurors.findIndex(j => j.k === 'p' && j.id === p.id);
     if (i < 0 || i in S.votes) return;
     S.votes[i] = c;
