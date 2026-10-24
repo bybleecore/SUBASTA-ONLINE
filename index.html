@@ -88,6 +88,40 @@ button.vbtn{display:block;width:100%;margin:8px 0}
 .chip.gold,.tbl tr.gold td{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8);color:#2A1B5E;font-weight:600}
 .chip.gold small{color:#2A1B5E;opacity:.8}
 .banner.gold{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8)}
+.champ{position:relative;overflow:hidden;text-align:center;margin:14px 0;padding:24px 16px 16px;border-radius:16px;background:linear-gradient(135deg,#ff3b3b,#ff9f1c,#ffe83b,#3bd16f,#3b9eff,#8a3bff,#ff3bd4,#ff3b3b);background-size:300% 100%;animation:rbc 6s linear infinite;color:#1a1033;box-shadow:0 0 0 3px #fff8,0 8px 30px #0006}
+.champ .crown{font-size:2.6rem;line-height:1;display:inline-block;animation:crown 1.6s ease-in-out infinite alternate}
+.champ .ct{font:400 1.5rem/1.15 'Twemoji Country Flags','Bowlby One',Impact,sans-serif;margin:6px 0 2px;overflow-wrap:anywhere}
+.champ .cs{font-weight:700;margin-bottom:8px}
+.champ .cm{font-style:italic;max-width:46ch;margin:0 auto 8px}
+.champ .co{font-size:.92rem}
+.champ .cx{margin-top:8px;font-weight:700}
+.champ.gold{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8);animation:none}
+.champ.intl{background:linear-gradient(135deg,#050505,#2b2208 45%,#050505);border:2px solid #E3B341;color:#F6EBC8;box-shadow:0 0 34px #e3b34155;animation:none}
+.champ.intl .ct{color:#E3B341;text-shadow:0 0 14px #e3b34188}
+.confetti{position:absolute;inset:0;pointer-events:none}
+.confetti span{position:absolute;top:-28px;font-size:1.3rem;animation:conf 3.2s linear infinite}
+@keyframes conf{to{transform:translateY(300px) rotate(360deg);opacity:0}}
+@keyframes crown{from{transform:rotate(-8deg) scale(1)}to{transform:rotate(8deg) scale(1.12)}}
+@keyframes rbc{to{background-position:300% 0}}
+@media (prefers-reduced-motion:reduce){.champ,.champ .crown,.confetti span{animation:none}}
+/* FMS Internacional: negro y dorado */
+.intlhead{text-align:center;font:400 1.05rem 'Twemoji Country Flags','Bowlby One',Impact,sans-serif;letter-spacing:.3em;color:#E3B341;border-bottom:1px solid #E3B34166;padding:2px 0 10px;margin-bottom:8px;text-shadow:0 0 12px #e3b34166}
+#simBox.intl{--bg:#0b0b0b;--card:#16130a;--ink:#F6EBC8;--y:#E3B341;--r:#B3361F;background:radial-gradient(circle at 50% 0,#2b2208 0,#0b0b0b 58%);border:2px solid #E3B341;border-radius:16px;padding:14px 16px;box-shadow:0 0 30px #e3b34133,inset 0 0 40px #000a}
+#simBox.intl h2{text-shadow:0 0 12px #e3b34155}
+#simBox.intl button{background:linear-gradient(135deg,#f6d673,#c99a1c);color:#0b0b0b}
+#simBox.intl button.alt{background:#16130a;color:#F6EBC8;border:2px solid #E3B341}
+#simBox.intl button.sel{background:var(--r);color:#fff}
+#simBox.intl .chip{background:#2a2410;border:1px solid #E3B34177;color:#F6EBC8}
+#simBox.intl .chip.gold{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8);color:#2A1B5E;border:0}
+#simBox.intl .chip.rainbow{border:0}
+#simBox.intl .pl,#simBox.intl .tbl th,#simBox.intl .tbl td{border-bottom-color:#E3B34133}
+#simBox.intl .tbl tr.hl td{background:#e3b34122}
+#simBox.intl .vs>span{background:#000;border:1px solid #E3B34155}
+#simBox.intl .vs>span.w{background:linear-gradient(135deg,#FFD23F,#b8860b);color:#0b0b0b}
+#simBox.intl .banner{background:linear-gradient(135deg,#f6d673,#c99a1c 55%,#fff0b0);color:#0b0b0b}
+#simBox.intl .banner.rep{background:#B3361F;color:#fff}
+#simBox.intl .banner.rainbow{background:linear-gradient(90deg,#ff3b3b,#ff9f1c,#ffe83b,#3bd16f,#3b9eff,#8a3bff,#ff3bd4,#ff3b3b);background-size:200% 100%;color:#1a1033}
+#simBox.intl .card.win{border-color:#E3B341}
 .glow{animation:glow 1.4s ease-in-out infinite alternate}
 @keyframes glow{from{box-shadow:0 0 3px #FFD23F}to{box-shadow:0 0 14px 4px #FFD23F}}
 .chip.rainbow,.banner.rainbow,.tbl tr.rainbow td{background:linear-gradient(90deg,#ff3b3b,#ff9f1c,#ffe83b,#3bd16f,#3b9eff,#8a3bff,#ff3bd4,#ff3b3b);background-size:200% 100%;animation:rb 3s linear infinite;color:#1a1033;font-weight:700}
@@ -154,7 +188,7 @@ button.vbtn{display:block;width:100%;margin:8px 0}
       <label for="gm">Modo de partida</label>
       <select id="gm"><option value="std">5 personajes por jugador</option><option value="cast">Cast: temática al azar (solo Frikirappers)</option><option value="tema">Amar tema: temática al azar, 8 puestos y 70$ (solo Frikirappers)</option><option value="versus">Versus: 5 rivales al azar por jugador (solo Freestylers)</option><option value="xi">Armar 11: plantilla 4-3-3 o 4-4-2 y 100$ (solo Blue Lock)</option><option value="best">Armar el mejor: llena cada categoría con tus personajes y 100$ (Freestylers, Frikirappers y Blue Lock)</option><option value="sim">Simulaciones: ligas FMS, 8 freestylers por jugador y jornadas con jurado; con 4 jugadores hay FMS Internacional con cortes (2019); desde 5, con fase de grupos (2021) y, con más de 5, se votan las 5 mejores ligas (solo Freestylers, 1 a 7 jugadores). Al acabar se puede jugar la temporada 2 con World Series. Activa además el «Modo Carrera» para simular todas las temporadas de la FMS</option></select>
       <div id="juryBox" class="hide"><label for="jury">Jurado de cada batalla (Simulaciones)</label>
-      <select id="jury"><option value="3">3 jurados</option><option value="5">5 jurados (solo con 6 o más jugadores)</option></select></div>
+      <select id="jury"><option value="1">1 jurado (solo con 2 jugadores)</option><option value="3">3 jurados</option><option value="5">5 jurados (solo con 6 o más jugadores)</option></select></div>
       <div id="careerBox" class="hide"><label for="career">Modo Carrera (Simulaciones)</label>
       <select id="career"><option value="0">Desactivado</option><option value="1">Activado: temporada 1 (FMS España) · 2 (+ Argentina) · 3 (+ México, Chile e Internacional con cortes) · 4 (+ Perú e Internacional con fase de grupos)</option></select></div>
       <div id="aucDifBox">
@@ -481,9 +515,9 @@ function render(){
     setVal($('modo'),S.mode);setVal($('dif'),S.dif);setVal($('auc'),S.auc);setVal($('gm'),S.gm);
     $('gm').querySelector('option[value=std]').disabled=S.mode==='b';$('gm').querySelector('option[value=cast]').disabled=S.mode!=='k';$('gm').querySelector('option[value=tema]').disabled=S.mode!=='k';$('gm').querySelector('option[value=versus]').disabled=S.mode!=='f';$('gm').querySelector('option[value=xi]').disabled=S.mode!=='b';
     $('gm').querySelector('option[value=sim]').disabled=S.mode!=='f';
-    $('juryBox').classList.toggle('hide',S.gm!=='sim'||!!S.career);setVal($('jury'),S.jury);
+    $('juryBox').classList.toggle('hide',S.gm!=='sim'||(!!S.career&&S.players.length!==2));setVal($('jury'),S.jury);
     $('aucDifBox').classList.toggle('hide',S.gm==='sim'&&!!S.career);$('mgrBox').classList.toggle('hide',!(S.gm==='sim'&&S.career));setVal($('mgr'),S.mgr?'1':'0');setVal($('mdif'),S.mdif||'normal');$('careerBox').classList.toggle('hide',S.gm!=='sim');setVal($('career'),S.career?'1':'0');$('career').querySelector('option[value="1"]').disabled=S.players.length>7;
-    $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;
+    $('jury').querySelector('option[value="5"]').disabled=S.players.length<6;$('jury').querySelector('option[value="1"]').disabled=S.players.length!==2;
     $('start').disabled=S.gm==='sim'?(S.players.length<1||S.players.length>7):S.players.length<2;
     return;
   }
@@ -620,6 +654,9 @@ function simStageTitle(V){
   if(V.stage==='ws'&&V.ws)return '🌎 World Series · jornada '+V.ws.j+' de '+V.ws.jn;
   if(V.stage==='pique')return '🌶 Pique entre ligas · exhibición';
   if(V.stage==='grp'&&V.grp){const G=V.grp.groups[V.grp.g];return '🌍 FMS Internacional · '+(G.name==='Reservas'?'Reservas':'Grupo '+G.name)+' · jornada '+V.grp.gj+' de 5'}
+  if(V.stage==='po')return '🌍 FMS Internacional · Playoff';
+  if(V.stage==='lb')return '🔫 The Last Bullet';
+  if(V.stage==='lbf')return '🔫 The Last Bullet Final';
   if(V.stage==='cut1')return '🌍 FMS Internacional · primer corte';
   if(V.stage==='cut2')return '🌍 FMS Internacional · segundo corte';
   if(V.stage==='ko')return '🏆 '+(V.intl&&V.intl.mini?'Mini Internacional':'FMS Internacional')+' · '+KO_NAMES[V.ko];
@@ -629,6 +666,9 @@ function simStageInfo(V){
   if(V.stage==='ws'&&V.ws)return 'Liga extra de la temporada 2 con los '+V.ws.size+' freestylers mejor pagados de todas las ligas: todos contra todos. Solo mueve caché y su tabla; sigue su liga de siempre. El campeón se lleva +'+V.ws.bonus+'$.';
   if(V.stage==='pique')return 'Exhibición fuera de la tabla: solo mueve caché. El ganador se lleva +'+V.piqueCache+'$.';
   if(V.stage==='grp')return 'Fase de grupos como en la FMS Internacional 2021: se juega cada grupo entero (todos contra todos, 5 jornadas de 2 batallas) antes de pasar al siguiente. Clasifican los 3 primeros de cada grupo y el 1.º de Reservas.';
+  if(V.stage==='po')return 'Clasifican los 4 primeros de cada liga y se cruzan en un playoff de 12 batallas (1.º vs 4.º y 2.º vs 3.º de otra liga). Los 12 ganadores clasifican a la Gran Final y los 12 perdedores pasan a The Last Bullet.';
+  if(V.stage==='lb')return 'The Last Bullet: los 12 perdedores del playoff se juegan 6 batallas. Los 6 ganadores pasan a The Last Bullet Final; los 6 perdedores quedan eliminados.';
+  if(V.stage==='lbf')return 'The Last Bullet Final: 3 batallas entre los 6 supervivientes. Los 3 ganadores clasifican (15 en total); el último billete lo votan los jugadores entre los 3 que pierden.';
   if(V.stage==='cut1')return 'Los 4 primeros de cada liga tras la jornada '+V.cutJ+': el 1.º se cruza con el 4.º de otra liga y el 2.º con el 3.º de otra liga. Los 8 ganadores clasifican a la Gran Final.';
   if(V.stage==='cut2')return 'Ligas terminadas. Los 4 mejores de cada tabla que aún no están clasificados se cruzan igual (1.º vs 4.º y 2.º vs 3.º de otra liga). Otros 8 billetes a la Gran Final.';
   if(V.stage==='ko'&&V.intl&&V.intl.mini)return 'Mini inter: eliminatoria directa entre los 8 clasificados (los 4 primeros de cada liga), desde cuartos de final. Cada uno eligió su llave. El campeón se lleva +'+V.intlChamp+'$ de caché.';
@@ -673,9 +713,24 @@ function hofHtml(){
 $('hofBtn').onclick=()=>{$('hofBody').innerHTML=hofHtml();$('hofModal').classList.remove('hide')};
 $('hofClose').onclick=()=>$('hofModal').classList.add('hide');
 $('hofBody').onclick=e=>{const b=e.target.closest('[data-hof]');if(b&&b.dataset.hof==='clear'&&confirm('¿Borrar todo el Hall of Fame de este dispositivo?')){try{localStorage.removeItem(HOF_KEY)}catch(x){}$('hofBody').innerHTML=hofHtml()}};
+const CHAMP_MSG=[
+  'Una temporada para el recuerdo: ¡que se escuche ese nombre en todas partes!',
+  'Lo diste todo en cada batalla y el micro por fin es tuyo. ¡Enhorabuena!',
+  'Barras afiladas, cabeza fría y corazón enorme. ¡Te lo has ganado!',
+  'Todo el esfuerzo tiene su recompensa. ¡Qué orgullo verte arriba!',
+  'Hoy el escenario es tuyo. ¡Un aplauso enorme para ti!'
+];
+function champHash(t){let h=0;for(const c of String(t))h=(h*31+c.charCodeAt(0))>>>0;return h}
+function champCard(o){ // mensaje especial para un campeón. kind: 'liga' | 'ws' (arcoíris) · 'intl' (negro y dorado) · 'gold' (ganador de la partida)
+  const m=CHAMP_MSG[champHash(o.kind+'|'+o.name)%CHAMP_MSG.length];
+  const conf=['🎊','✨','🎉','⭐','🎤','✨','🎊','🎉'].map((e,i)=>'<span style="left:'+(6+i*12)+'%;animation-delay:'+(i*0.35).toFixed(2)+'s">'+e+'</span>').join('');
+  return '<div class="champ pop'+(o.kind==='intl'?' intl':o.kind==='gold'?' gold':'')+'"><div class="confetti" aria-hidden="true">'+conf+'</div><div class="crown">👑</div><div class="ct">¡Felicidades, '+esc(o.name)+'!</div><div class="cs">'+o.title+'</div><div class="cm">'+m+'</div>'+
+    (o.owner?'<div class="co">'+(o.mine?'💜 ¡Es de tu liga! ':'')+'Lo representa <b>'+esc(o.owner)+'</b>'+(o.mine?' (tú)':'')+'</div>':(o.mine?'<div class="co">💜 ¡Has sido tú!</div>':''))+
+    (o.extra?'<div class="cx">'+o.extra+'</div>':'')+'</div>';
+}
 function simPanel(V){ // siempre visible durante la temporada: clasificados a la Gran Final (dorado) y campeones de liga (arcoíris)
   if(!V.intl)return '';
-  const q=V.intl.q,cut=V.stage==='cut1'||V.stage==='cut2';
+  const q=V.intl.q,cut=['cut1','cut2','po','lb','lbf'].includes(V.stage)||V.step==='bres';
   let h='<div class="box qpanel"><b>🎟 Clasificados a '+(V.intl.mini?'la Mini Internacional ('+q.length+'/8)':'la Gran Final ('+q.length+'/16)')+'</b><div style="margin-top:4px">'+(q.length?q.map(x=>'<span class="chip gold'+(cut||x.via==='grp'?' glow':'')+'">'+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+(x.g?' · '+(x.g==='Reservas'?'Reservas':'Grupo '+esc(x.g)):'')+'</small></span>').join(''):'<small>Todavía ninguno</small>')+'</div>';
   const ch=V.leagues.filter(l=>l.fin).map(l=>'<span class="chip rainbow">🌈 '+esc(l.table[0].n)+' <small>'+lgTh(l.name).f+' '+esc(l.name.replace('FMS ',''))+'</small></span>');
   if(ch.length)h+='<div style="margin-top:8px"><b>🌈 Campeones de liga</b></div><div>'+ch.join('')+'</div>';
@@ -713,6 +768,7 @@ function simAfterLabel(V){ // lo que viene al terminar la jornada (y su evento)
 function simAfterLeaguesLabel(V){ // lo que viene al acabar las ligas (y la World Series)
   const I=V.intl;
   if(I&&I.mini)return '🌍 Mini Internacional: los 4 primeros de cada liga';
+  if(I&&I.bullet)return '🔫 FMS Internacional: playoff de clasificación (4 por liga)';
   if(I&&I.grp)return I.lgs?'🎲 Sorteo de grupos de la FMS Internacional':'🗳 Votar las '+I.nl+' mejores ligas';
   return I?'🌍 Segundo corte de la FMS Internacional':'Ver el final de la temporada';
 }
@@ -725,6 +781,9 @@ function simNextLabel(V){
   }
   if(V.stage==='grp'){const g=V.grp,gs=g.groups,nm=i=>gs[i].name==='Reservas'?'Reservas':'Grupo '+gs[i].name;return g.gj<5?'Jornada '+(g.gj+1)+' · '+nm(g.g):g.g<5?'➡ Siguiente: '+nm(g.g+1):'🏆 Gran Final: elegir las llaves de octavos'}
   if(V.stage==='ws'&&V.ws)return V.ws.j<V.ws.jn?'World Series · jornada '+(V.ws.j+1)+' de '+V.ws.jn:simAfterLeaguesLabel(V);
+  if(V.stage==='po')return '🔫 The Last Bullet';
+  if(V.stage==='lb')return '🔫 The Last Bullet Final';
+  if(V.stage==='lbf')return '🗳 Votar el último clasificado';
   if(V.stage==='cut1')return 'Volver a las ligas: jornada '+(V.cutJ+1)+' · '+V.leagues[V.order[0]].name;
   if(V.stage==='cut2')return '🏆 Gran Final: elegir las llaves de octavos';
   return V.ko<3?KO_NAMES[V.ko+1]:'Ver el final de la temporada';
@@ -867,7 +926,7 @@ function simKoPickHTML(V,host){ // octavos: sale un clasificado y el representan
 }
 function renderSim(m,host){
   const box=$('simBox'),V=S.sim;
-  if(!V){box.innerHTML='';return}
+  if(!V){box.innerHTML='';box.classList.remove('intl');return}
   hofSave(V);
   if(simAnim.id!==V.id)simAnim={id:V.id,t0:performance.now(),skip:false};
   clearTimeout(simTimer);
@@ -965,6 +1024,21 @@ function renderSim(m,host){
     }else h+='<p>Estás mirando: votan los jugadores.</p>';
     h+='<div>'+V.lvoters.map(p=>'<span class="chip">'+esc(p.name)+(V.lvoted.includes(p.id)?' ✔':' ⏳')+'</span>').join('')+'</div>';
     if(host&&V.lvoted.length<V.lvoters.length)h+='<button class="alt sm" data-sim="skip">Dar por votados (al azar) a los que faltan</button>';
+  }else if(V.step==='bvote'&&V.bv){
+    const B=V.bv,voted=B.voted.includes(myId),isVoter=B.voters.some(p=>p.id===myId);
+    h+='<h2>🗳 El último billete a la FMS Internacional</h2><p>Ya hay 15 clasificados. El 16.º lo votáis los jugadores entre los 3 que perdieron The Last Bullet Final. Más votos = clasifica (empate: más caché y, si sigue, el azar).</p>';
+    if(isVoter&&!voted){
+      h+=B.cand.map((x,i)=>'<button class="vbtn" data-bv="'+i+'">'+esc(x.n)+' <small>· '+esc(lgShort(V,x.l))+' · '+x.c+'$ de caché</small></button>').join('');
+    }else if(voted){
+      h+='<p>✔ Voto enviado. Esperando a los demás…</p>'+B.cand.map(x=>'<div class="pl"><span>'+esc(x.n)+'</span><small>'+esc(lgShort(V,x.l))+' · '+x.c+'$</small></div>').join('');
+    }else h+='<p>Estás mirando: votan los jugadores.</p>';
+    h+='<div>'+B.voters.map(p=>'<span class="chip">'+esc(p.name)+(B.voted.includes(p.id)?' ✔':' ⏳')+'</span>').join('')+'</div>';
+    if(host&&B.voted.length<B.voters.length)h+='<button class="alt sm" data-sim="skip">Dar por votados (al azar) a los que faltan</button>';
+  }else if(V.step==='bres'&&V.bv&&V.bv.res){
+    const B=V.bv,R=B.res,wl=V.leagues[R.l];
+    h+='<h2>🗳 Resultado de la votación</h2>'+B.cand.map((x,i)=>'<div class="pl'+(i===R.win?' win':'')+'"><span>'+(i===R.win?'🎟 ':'')+esc(x.n)+' <small>'+esc(lgShort(V,x.l))+'</small></span><small>'+R.counts[i]+' votos · '+(i===R.win?'✔ clasifica a la Gran Final':'✖ fuera')+'</small></div>').join('');
+    h+='<div class="banner gold glow pop">🎟 '+esc(R.n)+' ('+esc(lgShort(V,R.l))+') es el 16.º clasificado a la FMS Internacional</div>';
+    h+=nextBtn('🏆 Gran Final: elegir las llaves de octavos');
   }else if(V.step==='lres'){
     h+='<h2>🗳 Resultado de la votación</h2>'+V.intl.vres.map((x,i)=>'<div class="pl'+(x.in?' win':'')+'"><span>'+(i+1)+'. '+lgTh(V.leagues[x.l].name).f+' '+esc(V.leagues[x.l].name)+(V.leagues[x.l].owner===myId?' (tú)':'')+'</span><small>'+x.v+' votos · '+(x.in?'✔ va a la inter':'✖ fuera')+'</small></div>').join('');
     h+='<p><small>Empates: gana la liga con más caché total y, si sigue el empate, el azar.</small></p>'+nextBtn(V.intl.grp?'🎲 Sorteo de grupos de la FMS Internacional':'🌍 Primer corte de la FMS Internacional');
@@ -1011,14 +1085,14 @@ function renderSim(m,host){
       if(V.stage==='grp'&&V.grp)h+='<h2>'+(V.grp.groups[V.grp.g].name==='Reservas'?'Reservas':'Grupo '+V.grp.groups[V.grp.g].name)+'</h2>'+simGrpHTML(V,V.grp.g);
       if(V.stage!=='pique'&&V.stage!=='grp'&&V.stage!=='ws'&&V.intl&&V.intl.lgs&&V.intl.lgs.length<V.total)h+='<p><small>Ligas en la inter: '+V.intl.lgs.map(l=>esc(lgShort(V,l))).join(' · ')+'</small></p>';
       if(!V.solo)h+='<p><small>🎙 Cada batalla tiene su propio jurado: no vota ningún jugador cuyos freestylers se enfrentan, y un voto va asegurado al favorito por caché.</small></p>';
-      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():V.stage==='pique'?'Empezar la exhibición':V.stage==='ws'?'Empezar la jornada '+V.ws.j:V.stage==='grp'?'Empezar la jornada '+V.grp.gj:'Empezar el corte');
+      h+=nextBtn(V.stage==='ko'?'Empezar '+KO_NAMES[V.ko].toLowerCase():V.stage==='po'?'Empezar el playoff':V.stage==='lb'?'Empezar The Last Bullet':V.stage==='lbf'?'Empezar The Last Bullet Final':V.stage==='pique'?'Empezar la exhibición':V.stage==='ws'?'Empezar la jornada '+V.ws.j:V.stage==='grp'?'Empezar la jornada '+V.grp.gj:'Empezar el corte');
     }
   }else if(V.step==='vote'){
     const cur=V.cur,bt=cur.battles[cur.b],seat=cur.jurors.findIndex(j=>j.k==='p'&&j.id===myId);
     h+='<h2>Batalla '+(cur.b+1)+' de '+cur.battles.length+(cur.round===2?' · 🔁 RÉPLICA':'')+'</h2><div class="card">'+simVs(bt)+'</div>';
     if(cur.round===2)h+='<p><small>Ronda extra: ya no vale votar réplica, hay que elegir a uno.</small></p>';
     if(seat>=0&&!cur.voted.includes(seat)){
-      h+='<p><b>Eres jurado. ¿Quién ha ganado?</b></p><button class="vbtn" data-simvote="a">'+esc(bt.a)+'</button>'+(cur.round===1?'<button class="vbtn alt" data-simvote="r">🔁 Réplica</button>':'')+'<button class="vbtn" data-simvote="b">'+esc(bt.b)+'</button>';
+      h+='<p><b>Eres jurado. ¿Quién ha ganado?</b></p><button class="vbtn" data-simvote="a">'+esc(bt.a)+'</button>'+(cur.round===1&&cur.jurors.length>1?'<button class="vbtn alt" data-simvote="r">🔁 Réplica</button>':'')+'<button class="vbtn" data-simvote="b">'+esc(bt.b)+'</button>';
     }else if(seat>=0){
       h+='<p>✔ Voto enviado. Esperando a los demás jurados…</p>';
     }else if(isLg?own(cur.lg):(own(bt.la)||own(bt.lb))){
@@ -1043,8 +1117,9 @@ function renderSim(m,host){
       const W=res.w==='a'?bt.a:bt.b,Lz=res.w==='a'?bt.b:bt.a;
       h+='<div class="banner pop" style="animation-delay:'+dl+'s">🏆 '+esc(W)+' gana'+(res.rep?' tras réplica':'')+'</div>'+
         '<p>'+(res.lg?esc(W)+' <b>+'+res.pw+' pts</b> · '+esc(Lz)+' <b>+'+res.pl+' pts</b><br>':'')+'👁 <b>'+fmtV(res.visits)+'</b> visitas en esta batalla'+(V.mgr?'<br>💰 La liga de '+esc(W)+' gana <b>+'+res.gain+'$</b> de caché <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 La liga de '+esc(Lz)+' gana <b>+'+res.vl+'$</b> <small>(visitas)</small>':'<br>💰 Caché de '+esc(W)+': <b>+'+res.gain+'$</b> <small>(base +'+res.base+'$ · visitas +'+res.vw+'$)</small><br>💰 Caché de '+esc(Lz)+': <b>+'+res.vl+'$</b> <small>(visitas)</small>')+
-        (V.stage==='cut1'||V.stage==='cut2'?'<br>🎟 '+esc(W)+' clasifica a la Gran Final':'')+
+        (V.stage==='cut1'||V.stage==='cut2'||V.stage==='po'||V.stage==='lbf'?'<br>🎟 '+esc(W)+' clasifica a la Gran Final':'')+(V.stage==='po'?'<br>🔫 '+esc(Lz)+' va a The Last Bullet':'')+(V.stage==='lb'?'<br>🔫 '+esc(W)+' pasa a The Last Bullet Final · '+esc(Lz)+' queda eliminado':'')+(V.stage==='lbf'?'<br>🗳 '+esc(Lz)+' queda para la votación del último billete':'')+
         (V.stage==='ko'&&V.ko===3?'<br>🌍 ¡'+esc(W)+' es campeón de la '+(V.intl&&V.intl.mini?'Mini Internacional':'FMS Internacional')+'! Al cerrar se lleva +'+V.intlChamp+'$ de caché':'')+'</p>';
+      if(V.stage==='ko'&&V.ko===3){const wl=V.leagues[res.w==='a'?bt.la:bt.lb];h+=champCard({kind:'intl',name:W,title:'🌍 Campeón de la '+(V.intl&&V.intl.mini?'Mini Internacional':'FMS Internacional'),owner:wl.ownerName,mine:wl.owner===myId,extra:'💰 +'+V.intlChamp+'$ de caché al cerrar'})}
       h+=nextBtn(cur.b<cur.battles.length-1?'Siguiente batalla':(isLg?'Cerrar la jornada':'Ver resultados'));
     }
   }else if(V.step==='jEnd'){
@@ -1052,7 +1127,7 @@ function renderSim(m,host){
     if(isLg){
       const lg=V.leagues[cur.lg];
       h+=(V.mvp?'<div class="banner pop">⭐ MVP de la jornada: <b>'+esc(V.mvp.n)+'</b> · cobra +'+V.mvp.pay+'$ de caché</div>':'')+'<h2>'+lgBadge(lg.name)+' · tabla tras la jornada '+V.j+'</h2>'+simTable(lg.table,null,simTO(V,cur.lg))+'<h2>Resultados</h2>'+simBattleList(cur,-1);
-      if(!V.mk&&V.j===V.jn&&lg.fin)h+='<div class="banner rainbow pop">🌈 Campeón de '+esc(lg.name)+': '+esc(lg.table[0].n)+'</div>';
+      if(!V.mk&&V.j===V.jn&&lg.fin)h+=champCard({kind:'liga',name:lg.table[0].n,title:'🌈 Campeón de '+esc(lg.name)+(V.career?' · temporada '+V.season:''),owner:lg.ownerName,mine:lg.owner===myId,extra:'🏆 '+lg.table[0].pts+' puntos'});
     }else{
       if(V.stage==='grp'&&V.grp){
         const G=V.grp.groups[V.grp.g];
@@ -1060,8 +1135,10 @@ function renderSim(m,host){
         if(G.done){const need=G.name==='Reservas'?V.grp.qr:V.grp.q;h+='<div class="banner gold glow pop">🎟 Clasifican a la Gran Final: '+G.table.slice(0,need).map(x=>esc(x.n)).join(', ')+'</div>'}
       }else if(V.stage==='ws'&&V.ws){
         h+='<h2>World Series · tabla tras la jornada '+V.ws.j+'</h2>'+simWsHTML(V)+'<h2>Resultados</h2>'+simBattleList(cur,-1);
-        if(V.ws.done&&V.ws.champ)h+='<div class="banner rainbow pop">🌈 Campeón de la World Series: <b>'+esc(V.ws.champ.n)+'</b> · +'+V.ws.champ.bonus+'$ de caché</div>';
+        if(V.ws.done&&V.ws.champ){const wl=V.leagues[V.ws.champ.l];h+=champCard({kind:'ws',name:V.ws.champ.n,title:'🌎 Campeón de la World Series',owner:wl?wl.ownerName:null,mine:!!wl&&wl.owner===myId,extra:'💰 +'+V.ws.champ.bonus+'$ de caché'})}
       }else h+='<h2>'+simStageTitle(V)+' · resultados</h2>'+simBattleList(cur,-1);
+      if(V.stage==='ko'&&V.ko===3&&cur.battles[0]&&cur.battles[0].res){const fb=cur.battles[0],fw=fb.res.w==='a',wl=V.leagues[fw?fb.la:fb.lb];h+=champCard({kind:'intl',name:fw?fb.a:fb.b,title:'🌍 Campeón de la '+(V.intl&&V.intl.mini?'Mini Internacional':'FMS Internacional'),owner:wl.ownerName,mine:wl.owner===myId,extra:'💰 +'+V.intlChamp+'$ de caché'})}
+      if(V.stage==='po'||V.stage==='lbf'){const nq=V.intl.q.filter(x=>x.via===(V.stage==='po'?'po':'lb')).length;h+='<div class="banner gold glow pop">🎟 '+nq+' clasificados a la Gran Final'+(V.stage==='po'?' · los '+nq+' perdedores van a The Last Bullet':' · el último billete se vota')+'</div>'}
       if(V.stage==='cut1'||V.stage==='cut2'){const nq=V.intl.q.filter(x=>x.via===V.stage).length;h+='<div class="banner gold glow pop">🎟 '+nq+' clasificados a la Gran Final en este corte</div>'}
     }
     h+=nextBtn(simNextLabel(V));
@@ -1069,30 +1146,34 @@ function renderSim(m,host){
     h+='<h2>🏁 Fin de la temporada '+V.season+'</h2>';
     if(V.career&&!V.cnext)h+='<div class="banner rainbow pop">🏆 ¡Carrera completada! Has simulado las '+V.cSeasons+' temporadas de la FMS</div>';
     (V.histAll||[]).forEach(H=>{if(H.winner)h+='<div class="card"><b>Temporada '+H.season+'</b>: ganó la subasta <b>'+esc(H.winner.ownerName)+'</b> con '+esc(H.winner.n)+' ('+H.winner.c+'$)</div>'});
-    if(V.ws&&V.ws.champ)h+='<div class="banner rainbow pop">🌎 Campeón de la World Series: '+esc(V.ws.champ.n)+' ('+esc(lgShort(V,V.ws.champ.l))+') · +'+V.ws.champ.bonus+'$ de caché</div>';
+    if(V.ws&&V.ws.champ){const wl=V.leagues[V.ws.champ.l];h+=champCard({kind:'ws',name:V.ws.champ.n,title:'🌎 Campeón de la World Series · '+esc(lgShort(V,V.ws.champ.l)),owner:wl?wl.ownerName:null,mine:!!wl&&wl.owner===myId,extra:'💰 +'+V.ws.champ.bonus+'$ de caché'})}
     const ch=V.intl&&V.intl.champ;
-    if(ch)h+='<div class="banner pop">🌍 Campeón de la '+(V.intl.mini?'Mini Internacional':'FMS Internacional')+': '+esc(ch.n)+' ('+esc(lgShort(V,ch.l))+') · +'+ch.bonus+'$ de caché</div>';
+    if(ch){const wl=V.leagues[ch.l];h+=champCard({kind:'intl',name:ch.n,title:'🌍 Campeón de la '+(V.intl.mini?'Mini Internacional':'FMS Internacional')+' · '+esc(lgShort(V,ch.l)),owner:wl?wl.ownerName:null,mine:!!wl&&wl.owner===myId,extra:'💰 +'+ch.bonus+'$ de caché'})}
     const W=V.winner;
     if(W){
-      h+='<div class="banner pop" style="animation-delay:.3s">🏆 '+(V.mgr?'Manager con más caché':'Gana la subasta')+': '+esc(W.ownerName)+(W.owner===myId?' (tú)':'')+'</div>'+(V.mgr?'<p>Caché de su liga: <b>'+W.c+'$</b> · '+esc(W.league)+'</p>':'<p>Su freestyler con más caché: <b>'+esc(W.n)+'</b> · '+W.c+'$ · '+esc(W.league)+'</p>');
+      h+=champCard({kind:'gold',name:W.ownerName,title:'🏆 '+(V.mgr?'Manager con más caché':'Gana la subasta'),owner:null,mine:W.owner===myId})+(V.mgr?'<p>Caché de su liga: <b>'+W.c+'$</b> · '+esc(W.league)+'</p>':'<p>Su freestyler con más caché: <b>'+esc(W.n)+'</b> · '+W.c+'$ · '+esc(W.league)+'</p>');
       h+='<h2>Clasificación final por caché'+(V.mgr?' de liga':'')+'</h2>'+W.ranking.map((x,i)=>'<div class="pl'+(i===0?' win':'')+'"><span>'+(i+1)+'. <b>'+esc(x.ownerName)+'</b>'+(x.owner===myId?' (tú)':'')+(V.mgr?'':' · '+esc(x.n))+(V.career?' <small>('+esc(x.league)+')</small>':'')+'</span><small>'+x.c+'$</small></div>').join('');
     }
     h+='<h2>Campeones de liga</h2>';
     V.leagues.forEach((lg,i)=>{
       const c=lg.table[0];
-      h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$'+(lg.mvps.length?'<br>⭐ MVPs de jornada: '+Object.entries(lg.mvps.reduce((a,m)=>{a[m.n]=(a[m.n]||0)+1;return a},{})).map(([n,k])=>esc(n)+(k>1?' ×'+k:'')).join(', '):'')+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
+      h+='<div class="card lgcard'+(lg.owner===myId?' win':'')+'" style="'+lgStyle(lg.name)+'"><b>'+lgBadge(lg.name)+'</b> · liga de '+esc(lg.ownerName)+(lg.owner===myId?' (tú)':'')+'<br>🏆 Campeón: <b>'+esc(c.n)+'</b> · '+c.pts+' pts · '+c.c+'$ <span class="chip rainbow">🎉 ¡Felicidades!</span>'+(lg.mvps.length?'<br>⭐ MVPs de jornada: '+Object.entries(lg.mvps.reduce((a,m)=>{a[m.n]=(a[m.n]||0)+1;return a},{})).map(([n,k])=>esc(n)+(k>1?' ×'+k:'')).join(', '):'')+simTable(lg.table,[c.n],simTO(V,i))+'</div>';
     });
     if(V.cnext||(!V.career&&V.season===1)){const go=V.leagues.flatMap(l=>(l.music||[]).map(n=>esc(n)+' <small>('+esc(l.name.replace('FMS ',''))+')</small>'));if(go.length)h+='<div class="banner">🎵 Se dedican a la música y dejarán el freestyle al empezar la próxima temporada: <b>'+go.join(', ')+'</b></div>'}
-    h+=host?(V.cnext?'<h2>🏆 Modo Carrera · ¿Temporada '+V.cnext.season+'?</h2><p><small>Se suma'+(V.cnext.add.length>1?'n':'')+' '+V.cnext.add.map(n=>lgTh(n).f+' '+esc(n)).join(' y ')+(V.cnext.mini?' y una 🌍 Mini Internacional (los 4 primeros de cada liga juegan cuartos, semis y final)':'')+(V.cnext.intl&&V.cnext.grp?' y la 🌍 FMS Internacional con fase de grupos (los 5 primeros de cada liga se reparten en 5 grupos y los 6.º forman Reservas; clasifican 16 a la Gran Final)':'')+(V.cnext.intl&&!V.cnext.grp?' y la 🌍 FMS Internacional con cortes clasificatorios (los 4 primeros de cada liga se cruzan tras la jornada '+V.cutJ+' y al acabar las ligas; los 16 clasificados juegan la Gran Final)':'')+'. Las ligas anteriores conservan sus freestylers y su caché; cada jugador puede despedir hasta 2 freestylers por liga que lleve y los campeones se mantienen.</small></p><button data-sim="s2">🏁 Jugar la temporada '+V.cnext.season+'</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':V.season===1?'<h2>🏁 ¿Temporada 2?</h2><p><small>Cada jugador puede despedir hasta 2 freestylers y hay 1 draft de intercambio. Los campeones se mantienen (no se pueden despedir ni draftear). El caché se conserva y se suma la 🌎 World Series con los 10 freestylers mejor pagados de todas las ligas.</small></p><button data-sim="s2">🏁 Jugar la temporada 2</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':'<button data-sim="again">Jugar otra vez</button>'):'<small>Esperando al anfitrión…</small>';
+    h+=host?(V.cnext?'<h2>🏆 Modo Carrera · ¿Temporada '+V.cnext.season+'?</h2><p><small>Se suma'+(V.cnext.add.length>1?'n':'')+' '+V.cnext.add.map(n=>lgTh(n).f+' '+esc(n)).join(' y ')+(V.cnext.mini?' y una 🌍 Mini Internacional (los 4 primeros de cada liga juegan cuartos, semis y final)':'')+(V.cnext.bullet?' y la 🌍 FMS Internacional con el sistema de 2022-23: los 4 primeros de cada liga juegan un playoff de 12 batallas (12 clasificados), los perdedores juegan The Last Bullet (6 batallas) y The Last Bullet Final (3 batallas, 3 clasificados) y el 16.º se vota entre los jugadores':'')+(V.cnext.intl&&V.cnext.grp?' y la 🌍 FMS Internacional con fase de grupos (los 5 primeros de cada liga se reparten en 5 grupos y los 6.º forman Reservas; clasifican 16 a la Gran Final)':'')+(V.cnext.intl&&!V.cnext.grp&&!V.cnext.bullet?' y la 🌍 FMS Internacional con cortes clasificatorios (los 4 primeros de cada liga se cruzan tras la jornada '+V.cutJ+' y al acabar las ligas; los 16 clasificados juegan la Gran Final)':'')+'. Las ligas anteriores conservan sus freestylers y su caché; cada jugador puede despedir hasta 2 freestylers por liga que lleve y los campeones se mantienen.</small></p><button data-sim="s2">🏁 Jugar la temporada '+V.cnext.season+'</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':V.season===1?'<h2>🏁 ¿Temporada 2?</h2><p><small>Cada jugador puede despedir hasta 2 freestylers y hay 1 draft de intercambio. Los campeones se mantienen (no se pueden despedir ni draftear). El caché se conserva y se suma la 🌎 World Series con los 10 freestylers mejor pagados de todas las ligas.</small></p><button data-sim="s2">🏁 Jugar la temporada 2</button><button class="alt" data-sim="again">Terminar y jugar otra vez</button>':'<button data-sim="again">Jugar otra vez</button>'):'<small>Esperando al anfitrión…</small>';
   }
   if(V.step!=='draw'&&V.step!=='mkt'&&V.step!=='dft'&&V.step!=='lpick'&&V.step!=='rr'&&V.step!=='fmt'&&V.step!=='kopick')h+=simPanel(V);
   if(V.career)h='<div class="box"><b>🏆 Modo Carrera · Temporada '+V.season+' de '+V.cSeasons+'</b><br><small>'+V.leagues.map(l=>lgTh(l.name).f+' '+esc(l.name.replace('FMS ',''))+(V.mgr&&l.bank!=null?' <b>💰'+l.bank+'$</b>':'')).join(' · ')+(V.intl?(V.intl.mini?' · 🌍 Mini Internacional':' · 🌍 Internacional'):'')+(V.solo?' · jurado único: tú':'')+'</small></div>'+h;
+  const intlOn=V.step!=='end'&&(['cut1','cut2','grp','ko','po','lb','lbf'].includes(V.stage)||['gdraw','kopick','lvote','lres','bvote','bres'].includes(V.step));
+  box.classList.toggle('intl',intlOn);
+  if(intlOn)h='<div class="intlhead">★ '+(V.intl&&V.intl.mini?'MINI INTERNACIONAL':'FMS INTERNACIONAL')+' ★</div>'+h;
   box.innerHTML=h;
   if(V.step==='ev'&&V.ev)evSpin(EV_ORDER.indexOf(V.ev.type),V.ev.id);
 }
 $('simBox').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
   if(b.dataset.simpick!==undefined){const i=+b.dataset.simpick,k=simPick.indexOf(i);if(k>=0)simPick.splice(k,1);else if(simPick.length<(S.sim.intl?S.sim.intl.nl:4))simPick.push(i);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.bv!==undefined)socket.emit('simBvote',+b.dataset.bv);
   else if(b.dataset.sim==='lsend'){if(S.sim.intl&&simPick.length===S.sim.intl.nl)socket.emit('simLeagueVote',simPick.slice())}
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
   else if(b.dataset.sim==='next')socket.emit('simNext');
