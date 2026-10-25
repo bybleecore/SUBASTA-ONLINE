@@ -1044,6 +1044,9 @@ function simVisits(cw, cl, W, L, mW, mL, stageMul) {
   const pool = Math.round(v / VISITS_PER_CACHE / 10) * 10;
   return { v, vw: Math.round(pool * VISIT_SPLIT_W / 10) * 10, vl: Math.round(pool * (1 - VISIT_SPLIT_W) / 10) * 10 };
 }
+function simVsKey(a, b) { return a < b ? a + '||' + b : b + '||' + a; }
+function simVsGet(S, a, b) { const o = (S.vs || {})[simVsKey(a, b)] || {}; return [o[a] || 0, o[b] || 0]; } // victorias de a y de b en sus enfrentamientos anteriores (todas las fases y temporadas de esta partida)
+function simVsAdd(S, W, L) { const o = ((S.vs = S.vs || {})[simVsKey(W, L)] = S.vs[simVsKey(W, L)] || {}); o[W] = (o[W] || 0) + 1; }
 function simApply(r, w) {
   const S = r.sim, bt = S.battles[S.b], isLg = S.stage === 'league', isPq = S.stage === 'pique', isGp = S.stage === 'grp', isWs = S.stage === 'ws';
   const W = w === 'a' ? bt.a : bt.b, lW = w === 'a' ? bt.la : bt.lb, L = w === 'a' ? bt.b : bt.a, lL = w === 'a' ? bt.lb : bt.la, rep = S.round === 2;
@@ -1072,6 +1075,7 @@ function simApply(r, w) {
   }
   if ((S.stage === 'cut1' || S.stage === 'cut2') && !S.intl.q.some(x => x.l === lW && x.n === W)) S.intl.q.push({ l: lW, n: W, via: S.stage, beat: { l: lL, n: L } }); // el ganador de un corte clasifica (se guarda a quién venció)
   if (S.intl && S.intl.bullet && ['po', 'lb', 'lbf'].includes(S.stage)) simBulletRec(S, lW, W, lL, L);
+  simVsAdd(S, W, L); // suma la victoria al historial entre estos dos
   bt.res = { w, rep, gain, base, visits: vis.v, vw: vis.vw, vl: vis.vl, lg: isLg || isGp || isWs, pw: (isLg || isGp || isWs) ? (rep ? 2 : 3) : 0, pl: (isLg || isGp || isWs) ? (rep ? 1 : 0) : 0, cnt: { ...S.last.cnt } };
 }
 function simMvp(r) { // MVP de la jornada: cualquiera de los 8 freestylers de la liga, al azar. Cobra caché.
@@ -1800,7 +1804,7 @@ function simView(r) {
       lg: S.mk ? S.mk.li : (S.stage === 'league' ? S.order[S.li] : null), b: S.b, round: S.round, needRep: !!S.needRep,
       jurors: S.jurors.map(j => ({ k: j.k, id: j.id, name: j.name })),
       voted: S.step === 'vote' ? Object.keys(S.votes).map(Number) : [],
-      battles: S.battles.map(bt => ({ a: bt.a, b: bt.b, la: bt.la, lb: bt.lb, ra: bt.ra || 0, rb: bt.rb || 0, ca: S.leagues[bt.la].cache[bt.a], cb: S.leagues[bt.lb].cache[bt.b], res: bt.res })),
+      battles: S.battles.map(bt => ({ a: bt.a, b: bt.b, la: bt.la, lb: bt.lb, ra: bt.ra || 0, rb: bt.rb || 0, ca: S.leagues[bt.la].cache[bt.a], cb: S.leagues[bt.lb].cache[bt.b], h: simVsGet(S, bt.a, bt.b), res: bt.res })),
       last: S.step === 'reveal' ? S.last : null
     };
   }

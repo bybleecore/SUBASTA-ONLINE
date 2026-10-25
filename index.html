@@ -72,6 +72,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .vs>span small{display:block;font:600 .75rem 'Twemoji Country Flags','Work Sans',system-ui,sans-serif;color:var(--y)}
 .vs>span.w{background:var(--y);color:#2A1B5E}.vs>span.w small{color:#2A1B5E}
 .vs>b{color:var(--r);font-family:'Twemoji Country Flags','Bowlby One',Impact,sans-serif}
+.h2hw{text-align:center;margin:0 0 6px}
+.h2h{display:inline-block;padding:2px 12px;border-radius:6px;border:1px solid var(--y);background:#0004;font:600 .82rem 'Twemoji Country Flags','Work Sans',system-ui,sans-serif;letter-spacing:.03em}
+.h2h b{color:var(--y);font-size:.95rem}
 .tblw{overflow-x:auto}
 .tbl{width:100%;border-collapse:collapse;font-size:.85rem}
 .tbl th,.tbl td{padding:4px 6px;text-align:right;border-bottom:1px solid #5a47a0;white-space:nowrap}
@@ -758,7 +761,8 @@ function simVs(bt,res){
   const V=S.sim,intl=V&&V.stage&&V.stage!=='league';
   const tag=(l,rk)=>intl?esc(lgShort(V,l))+(rk?' · '+rk+'.º':'')+' · ':'';
   const wa=res&&res.w==='a',wb=res&&res.w==='b';
-  return '<div class="vs"><span class="'+(wa?'w':'')+'">'+esc(bt.a)+'<small>'+tag(bt.la,bt.ra)+(V.mgr?'valor '+bt.ca+'$':bt.ca+'$ de caché')+'</small></span><b>VS</b><span class="'+(wb?'w':'')+'">'+esc(bt.b)+'<small>'+tag(bt.lb,bt.rb)+(V.mgr?'valor '+bt.cb+'$':bt.cb+'$ de caché')+'</small></span></div>';
+  const hh=bt.h?'<div class="h2hw"><span class="h2h" title="Historial entre '+esc(bt.a)+' y '+esc(bt.b)+' (victorias de cada uno)">📊 Historial · <b>'+bt.h[0]+'-'+bt.h[1]+'</b></span></div>':'';
+  return hh+'<div class="vs"><span class="'+(wa?'w':'')+'">'+esc(bt.a)+'<small>'+tag(bt.la,bt.ra)+(V.mgr?'valor '+bt.ca+'$':bt.ca+'$ de caché')+'</small></span><b>VS</b><span class="'+(wb?'w':'')+'">'+esc(bt.b)+'<small>'+tag(bt.lb,bt.rb)+(V.mgr?'valor '+bt.cb+'$':bt.cb+'$ de caché')+'</small></span></div>';
 }
 function simJurors(cur,voted){
   return cur.jurors.map((j,i)=>{
