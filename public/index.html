@@ -98,6 +98,14 @@ button.vbtn{display:block;width:100%;margin:8px 0}
 .champ.gold{background:linear-gradient(135deg,#FFD23F,#ffb300 55%,#fff2a8);animation:none}
 .champ.intl{background:linear-gradient(135deg,#050505,#2b2208 45%,#050505);border:2px solid #E3B341;color:#F6EBC8;box-shadow:0 0 34px #e3b34155;animation:none}
 .champ.intl .ct{color:#E3B341;text-shadow:0 0 14px #e3b34188}
+.champ-ov{position:fixed;inset:0;z-index:70;background:rgba(5,2,15,.9);display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto;backdrop-filter:blur(3px);animation:ovin .35s ease-out}
+.champ-ov .champ{width:100%;max-width:580px;margin:auto;padding:38px 20px 22px}
+.champ-ov .champ .crown{font-size:4.4rem}
+.champ-ov .champ .ct{font-size:2.1rem}
+.champ-ov .champ .cs{font-size:1.15rem}
+.champ-ov .champ .cm{font-size:1.1rem}
+.champ-ov button{display:block;margin:14px auto 0}
+@keyframes ovin{from{opacity:0}to{opacity:1}}
 .confetti{position:absolute;inset:0;pointer-events:none}
 .confetti span{position:absolute;top:-28px;font-size:1.3rem;animation:conf 3.2s linear infinite}
 @keyframes conf{to{transform:translateY(300px) rotate(360deg);opacity:0}}
@@ -698,10 +706,17 @@ function hofHtml(){
   const rows=Object.entries(pal).sort((a,b)=>b[1].g-a[1].g||b[1].i-a[1].i||b[1].w-a[1].w||b[1].s-a[1].s||b[1].b-a[1].b||a[0].localeCompare(b[0])).slice(0,15);
   let h='<h2>🏛 Hall of Fame</h2><h2>Palmarés de freestylers</h2><div class="tblw"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th title="Ligas ganadas">🥇</th><th title="Segundos puestos">🥈</th><th title="Terceros puestos">🥉</th><th title="FMS Internacional: campeón / finalista">🌍</th><th title="World Series">🌎</th></tr>'+
     rows.map(([n,v],i)=>'<tr><td>'+(i+1)+'</td><td>'+esc(n)+'</td><td><b>'+v.g+'</b></td><td>'+v.s+'</td><td>'+v.b+'</td><td>'+v.i+(v.is?' / '+v.is:'')+'</td><td>'+v.w+'</td></tr>').join('')+'</table></div>';
-  const names=[];E.forEach(e=>e.pod.forEach(L=>{if(!names.includes(L.name))names.push(L.name)}));
+  const names=[],pl_rank=[];E.forEach(e=>e.pod.forEach(L=>{if(!names.includes(L.name))names.push(L.name)}));
+  names.forEach(nm=>{
+    const tl={},lad=(n,k)=>{(tl[n]=tl[n]||{g:0,s:0,b:0,i:0,w:0})[k]++};
+    E.forEach(e=>{const L=e.pod.find(x=>x.name===nm);if(L)L.p.forEach((x,i)=>{if(x)lad(x.n,['g','s','b'][i])});if(e.ic&&e.ic.champ.lg===nm)lad(e.ic.champ.n,'i');if(e.wsc&&e.wsc.lg===nm)lad(e.wsc.n,'w')});
+    const top=Object.entries(tl).sort((a,b)=>b[1].g-a[1].g||b[1].i-a[1].i||b[1].w-a[1].w||b[1].s-a[1].s||b[1].b-a[1].b||a[0].localeCompare(b[0])).slice(0,10);
+    pl_rank.push('<h2>'+lgTh(nm).f+' '+esc(nm)+' · más títulos</h2><div class="tblw lgt" style="'+lgStyle(nm)+'"><table class="tbl"><tr><th>#</th><th>Freestyler</th><th title="Ligas ganadas">🥇</th><th title="Segundos puestos">🥈</th><th title="Terceros puestos">🥉</th><th title="FMS Internacional ganada representando a esta liga">🌍</th><th title="World Series ganada representando a esta liga">🌎</th></tr>'+top.map(([n,v],i)=>'<tr'+(i===0&&v.g?' class="gold"':'')+'><td>'+(i+1)+'</td><td>'+(i===0&&v.g?'👑 ':'')+esc(n)+'</td><td><b>'+v.g+'</b></td><td>'+v.s+'</td><td>'+v.b+'</td><td>'+v.i+'</td><td>'+v.w+'</td></tr>').join('')+'</table></div>');
+  });
+  if(pl_rank.length)h+='<h2>🏛 Títulos por liga</h2><small>Quién tiene más títulos en cada liga (ligas ganadas, y la Internacional y la World Series ganadas representándola).</small>'+pl_rank.join('');
   names.forEach(nm=>{
     const th=lgTh(nm),list=E.filter(e=>e.pod.some(L=>L.name===nm)).slice().reverse().slice(0,12);
-    h+='<h2>'+th.f+' '+esc(nm)+'</h2>'+list.map(e=>{const L=e.pod.find(x=>x.name===nm),m=['🥇','🥈','🥉'];
+    h+='<h2>'+th.f+' '+esc(nm)+' · temporadas</h2>'+list.map(e=>{const L=e.pod.find(x=>x.name===nm),m=['🥇','🥈','🥉'];
       return '<div class="pl"><span>'+tag(e)+'</span><small>'+L.p.map((x,i)=>m[i]+' '+esc(x.n)+' ('+x.pts+' pts)').join(' · ')+'</small></div>'}).join('');
   });
   const inter=E.filter(e=>e.ic).slice().reverse().slice(0,12);
@@ -721,12 +736,15 @@ const CHAMP_MSG=[
   'Hoy el escenario es tuyo. ¡Un aplauso enorme para ti!'
 ];
 function champHash(t){let h=0;for(const c of String(t))h=(h*31+c.charCodeAt(0))>>>0;return h}
+let champCtx='',champOv=false;const champDone=new Set();
 function champCard(o){ // mensaje especial para un campeón. kind: 'liga' | 'ws' (arcoíris) · 'intl' (negro y dorado) · 'gold' (ganador de la partida)
-  const m=CHAMP_MSG[champHash(o.kind+'|'+o.name)%CHAMP_MSG.length];
+  const m=CHAMP_MSG[champHash(o.kind+'|'+o.name)%CHAMP_MSG.length],key=champCtx+'|'+o.kind+'|'+o.name+'|'+o.title;
+  if(champDone.has(key)||champOv)return '<div class="banner">👑 '+o.title+': <b>'+esc(o.name)+'</b>'+(o.mine?' 💜':'')+'</div>'; // ya visto (o espera su turno): solo una línea
+  champOv=true; // solo un mensaje a pantalla completa a la vez
   const conf=['🎊','✨','🎉','⭐','🎤','✨','🎊','🎉'].map((e,i)=>'<span style="left:'+(6+i*12)+'%;animation-delay:'+(i*0.35).toFixed(2)+'s">'+e+'</span>').join('');
-  return '<div class="champ pop'+(o.kind==='intl'?' intl':o.kind==='gold'?' gold':'')+'"><div class="confetti" aria-hidden="true">'+conf+'</div><div class="crown">👑</div><div class="ct">¡Felicidades, '+esc(o.name)+'!</div><div class="cs">'+o.title+'</div><div class="cm">'+m+'</div>'+
+  return '<div class="champ-ov" role="dialog" aria-modal="true"><div class="champ pop'+(o.kind==='intl'?' intl':o.kind==='gold'?' gold':'')+'"><div class="confetti" aria-hidden="true">'+conf+'</div><div class="crown">👑</div><div class="ct">¡Felicidades, '+esc(o.name)+'!</div><div class="cs">'+o.title+'</div><div class="cm">'+m+'</div>'+
     (o.owner?'<div class="co">'+(o.mine?'💜 ¡Es de tu liga! ':'')+'Lo representa <b>'+esc(o.owner)+'</b>'+(o.mine?' (tú)':'')+'</div>':(o.mine?'<div class="co">💜 ¡Has sido tú!</div>':''))+
-    (o.extra?'<div class="cx">'+o.extra+'</div>':'')+'</div>';
+    (o.extra?'<div class="cx">'+o.extra+'</div>':'')+'<button data-champ="'+esc(key)+'">Continuar</button></div></div>';
 }
 function simPanel(V){ // siempre visible durante la temporada: clasificados a la Gran Final (dorado) y campeones de liga (arcoíris)
   if(!V.intl)return '';
@@ -928,6 +946,7 @@ function renderSim(m,host){
   const box=$('simBox'),V=S.sim;
   if(!V){box.innerHTML='';box.classList.remove('intl');return}
   hofSave(V);
+  champCtx=V.id+'|'+V.season;champOv=false;
   if(simAnim.id!==V.id)simAnim={id:V.id,t0:performance.now(),skip:false};
   clearTimeout(simTimer);
   const mine=V.leagues.findIndex(l=>l.owner===myId),own=li=>!!V.leagues[li]&&V.leagues[li].owner===myId;
@@ -1172,7 +1191,8 @@ function renderSim(m,host){
 }
 $('simBox').onclick=e=>{
   const b=e.target.closest('button');if(!b)return;
-  if(b.dataset.simpick!==undefined){const i=+b.dataset.simpick,k=simPick.indexOf(i);if(k>=0)simPick.splice(k,1);else if(simPick.length<(S.sim.intl?S.sim.intl.nl:4))simPick.push(i);renderSim(me(),S.hostId===myId)}
+  if(b.dataset.champ!==undefined){champDone.add(b.dataset.champ);renderSim(me(),S.hostId===myId)}
+  else if(b.dataset.simpick!==undefined){const i=+b.dataset.simpick,k=simPick.indexOf(i);if(k>=0)simPick.splice(k,1);else if(simPick.length<(S.sim.intl?S.sim.intl.nl:4))simPick.push(i);renderSim(me(),S.hostId===myId)}
   else if(b.dataset.bv!==undefined)socket.emit('simBvote',+b.dataset.bv);
   else if(b.dataset.sim==='lsend'){if(S.sim.intl&&simPick.length===S.sim.intl.nl)socket.emit('simLeagueVote',simPick.slice())}
   else if(b.dataset.simvote)socket.emit('simVote',b.dataset.simvote);
