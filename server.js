@@ -51,7 +51,7 @@ const MGR_REPL = 10;    // freestylers del mercado cuando solo hay que reemplaza
 const MGR_APPEAR = { S: 0.05, L: 0.1, M: 0.6, E: 1, R: 1, C: 1 }; // probabilidad de que un freestyler pueda entrar en un mercado (los de más rareza casi nunca); en los mercados de reemplazo (10) Secretos y Legendarios la mitad
 const MGR_TOP_MAX = 1; // como mucho 1 Legendario o Secreto por mercado
 const MGR_BUDGET = { easy: 1.35, normal: 1.0, hard: 0.8 }; // dificultad: presupuesto inicial = 8 freestylers de precio medio × este factor (siempre alcanza para completar los 8)
-const RARITY_E = 'GAZIR:S,CHUTY:S,DOZER:R,MECHA:L,SOPHIA:E,MOTOSIERRA:R,SARA SOCAS:E,SKONE:L,JONY BELTRAN:L,BARON:R,NEKROOS:M,ACZINO:S,CTZ:R,BNET:S,SATIM:C,JOQERR:E,KLAN:E,STUART:L,KUSA:C,BLON:M,DTOKE:M,SHECKA:R,SWEETPAIN:L,NAVAS:R,EL MENOR:L,DANI:L,METALINGUISTICA:E,COLOSO:R,FORCE:C,VALLES T:L,ABEL:E,CACHA:C,PAPO:L,REPLIK:E,PIEZAS:E,BELICO:E,LIT KILLAH:M,TRUENO:L,G SONY:E,LOKILLO:M,ACRU:S,LOBO LOPEZ:C,RC:E,FAT N:E,EXODO LIRICAL:M,TEOREMA:L,GHETTO:E,JAZE:L,STRIKE:R,NECIA:R,SUMERIA:C,NITRO:M,FUSOK:E,NOCRE:E,KMBRA:E,KAISER:L,ZTICMA:E,EXE:E,RIFE:E,J1:E,KIAN:E,MARITHEA:L,AZUKY:M,SUB:E,LIT IGNIS:R,HORUS:R,JOTA:E,ALMENDRADES:E,FAT TONY:R,GOTTI:M,PANDORA:E,LARRIX:L,DALIA C:R,KG:M,DIMA:R,WOS:L,KODIGO:M,1TOBY:E,DYSE:E,NOTA ROJA:E,LOBO ESTEPARIO:M,DYBBUK:R,FACU HDR:E,MR EGO:E,BABI:E,INVERT:E,WOLF:R,ARMAMENTE:C,CHANG:M,LETRA:E,LANCER LIRICAL:E,NAICEN:R,SPEKTRO:R,HAMMER:R,URKO:E,VISIONARIO:E,PUPPY:E,AIRON:E,VIJAY:M,YENKY ONE:C,REVERSE:M,FILOSOFO:E,ELEMECE:R,ZAKI:R,99:R,BASEK:E,DROSE:M,EL BARTO:R,NASHO:C,RODAMIENTO:C,STIGMA:R,INDICO:C,ALDAHIR:C,NASIR CATRIEL:R,NAISTA:C,COBE:R,RITTER:R,RAPDER:M,XHAVEZ:E,ARTIL:C,IBAN:E,ARKANO:M,RAMSTER:C,CAFU:R,PIERO PISTAS:C,VENTI:E,JC SNAKE:R,LETRAS TARAPOTO:C,ICON:C,MSL:R,KATACRIST:R,BLAXO:E,XPLAIN:M,ZASKO:L,CHYSTE MC:L,JALONER:L,DANI VK:R,DESTELLO:C,BTI:C,ADESONG:E,ANUBIS:R,STICK:R,FABIUKI:E,JESSE PUNGAZ:E,MCKLOPEDIA:M,NACHO:E,ERRECE:C,KHAN:R,TIRPA:E,MKS:E,JACK ADRENALINA:C,ZAINA:C,DUKI:L,POTENCIA:C,YOIKER:C,WALLS:E,MNAK:M,TATA:R,DOMINIC:C,BTA:C,SKIPER:R,GHOST:C';
+const RARITY_E = 'GAZIR:S,CHUTY:S,DOZER:R,MECHA:L,SOPHIA:E,MOTOSIERRA:R,SARA SOCAS:E,SKONE:L,JONY BELTRAN:L,BARON:R,NEKROOS:M,ACZINO:S,CTZ:R,BNET:S,SATIM:C,JOQERR:E,KLAN:E,STUART:L,KUSA:C,BLON:M,DTOKE:M,SHECKA:R,SWEETPAIN:L,NAVAS:R,EL MENOR:L,DANI:L,METALINGUISTICA:E,COLOSO:R,FORCE:C,VALLES T:L,ABEL:E,CACHA:C,PAPO:L,REPLIK:E,PIEZAS:E,BELICO:E,LIT KILLAH:M,TRUENO:L,G SONY:E,LOKILLO:M,ACRU:S,LOBO LOPEZ:C,RC:E,FAT N:E,EXODO LIRICAL:M,TEOREMA:L,GHETTO:E,JAZE:L,STRIKE:R,NECIA:R,SUMERIA:C,NITRO:M,FUSOK:E,NOCRE:E,KMBRA:E,KAISER:L,ZTICMA:E,EXE:E,RIFE:E,J1:E,KIAN:E,MARITHEA:L,AZUKY:M,SUB:E,LIT IGNIS:R,HORUS:R,JOTA:E,ALMENDRADES:E,FAT TONY:R,GOTTI:M,PANDORA:E,LARRIX:L,DALIA C:R,KG:M,DIMA:R,WOS:L,KODIGO:M,1TOBY:E,DYSE:E,NOTA ROJA:E,LOBO ESTEPARIO:M,DYBBUK:R,FACU HDR:E,MR EGO:E,BABI:E,INVERT:E,WOLF:R,ARMAMENTE:C,CHANG:M,LETRA:E,LANCER LIRICAL:E,NAICEN:R,SPEKTRO:R,HAMMER:R,URKO:E,VISIONARIO:E,PUPPY:E,AIRON:E,VIJAY:M,YENKY ONE:C,REVERSE:M,FILOSOFO:E,ELEMECE:R,ZAKI:R,99:R,BASEK:E,DROSE:M,EL BARTO:R,NASHO:C,RODAMIENTO:C,STIGMA:R,INDICO:C,ALDAHIR:C,NASIR CATRIEL:R,NAISTA:C,COBE:R,RITTER:R,RAPDER:M,XHAVEZ:E,ARTIL:C,IBAN:E,ARKANO:M,RAMSTER:C,CAFU:R,PIERO PISTAS:C,VENTI:E,JC SNAKE:R,LETRAS TARAPOTO:C,ICON:C,MSL:R,KATACRIST:R,BLAXO:E,XPLAIN:M,ZASKO:L,CHYSTE MC:L,JALONER:L,DANI VK:R,DESTELLO:C,BTI:C,ADESONG:E,ANUBIS:R,STICK:R,FABIUKI:E,JESSE PUNGAZ:E,MCKLOPEDIA:M,NACHO:E,ERRECE:C,KHAN:R,TIRPA:E,MKS:E,JACK ADRENALINA:C,ZAINA:C,DUKI:L,POTENCIA:C,YOIKER:C,WALLS:E,MNAK:M,TATA:R,DOMINIC:C,BTA:C,SKIPER:R,GHOST:C,ALKOY:R,SOEN:C,UNDERDANN:R,IBAI:C,KAPO 013:C,PIRRY:R,NICKI NICOLE:C,KMC:R,AKAPELLAH:E,FRESCOLATE:R,MOWLIHAWK:R,LGIDO:C,CAQUIÑA:C,PEPE GRILLO:E,DAVISITO:C,HADRIAN:R,NIKI DMT:C,GARZA:R,JOKKER:R,BEELZE:R,PAULO LONDRA:R,ECKO:R,YSY A:R,MP:E,DAM:R,ELEKIPO:R,BOTTA:R,TOM CROWLEY:E,DRIXER:R,ARI CARRILLO:R,SATURNO:R,ONER:R,BLACKCODE:E,AUGE:R,RUSTY:R,INTERMITENTE46:R,NEZ:R,NQP:R,LE33:R';
 const RARITY_F = 'Darckstar:E,Piscu:S,Raven:M,Tikal:L,Calux:L,Xseven:M,Enigma:M,Miga:E,Alexiflow:R,Toni:E,Apology:R,Motosierra:E,Afidu:M,Aguscab:E,Alan Br:S,Ale No Ma:R,Angeloski:R,Bauti:M,Manuaka:M,BenjaLit:R,BigPitt:C,Billzo:E,Blanko:R,Bliduned:C,Bohemio:M,Bravo:C,Brz:R,Chozir:R,Dalo:L,Dallas:E,Danster:S,Dexuz:M,Pity:R,Zyklo:S,Eliot Sanity:M,Emiaj:C,Gess:R,Reaper:L,FreePuro:E,GP:M,Gino:M,Highscore:C,Jlarriva:E,Javi U Know:E,Jayden:R,JD:S,Joha:R,Jose:M,MCO:M,Juasmio:R,Kenn:E,Kojiro:R,Kuzko:R,Lobo:E,Logan:M,Tiaguiño:R,Noface:R,Laiño:R,LD:M,MicroNico:C,LU SM:E,Lil Ñaño:C,Luz:M,Mocu:M,Motera:R,Mzeta:C,Naoky:M,Panchok:E,Emi:R,RIverdash:C,Rubik:R,Ruvi:M,Saiko:R,505:R,Santufer:C,Seva:L,Sol:E,Taser:R,Tomastur:R,Vazco:R,Vince:R,Yara:L,Maki:M,Snti:L,Furroflow:R,Naps:R,Keifert:R,Micha:R,Ashura:R,Bendercat:M,Byaki:E,Reckless:E';
 // ---- Modo Carrera (solo con Simulaciones): todas las temporadas de la FMS, con más ligas cada año ----
 const CAREER_LEAGUES = [ // ligas de cada temporada; las que ya existían conservan sus freestylers y su caché
@@ -239,7 +239,7 @@ const BLUE_NAMES = [
 ];
 // Freestylers «élite» (alternativa a los de TWB: al empezar una partida de Freestylers una ruleta decide cuál de las dos bolsas se usa)
 // El país de cada freestyler va como bandera junto al nombre (la lista original usa el código entre paréntesis)
-const CC_FLAG = { ARG: 'AR', MEX: 'MX', GU: 'GT' }; // etiquetas que no son el código ISO del país
+const CC_FLAG = { ARG: 'AR', MEX: 'MX', USA: 'US', GU: 'GT' }; // etiquetas que no son el código ISO del país
 const flagOf = c => String.fromCodePoint(...[...(CC_FLAG[c] || c)].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
 const flagify = n => n.replace(/\s*(\([A-Z]+\)\s*)+$/, m => ' ' + (m.match(/\(([A-Z]+)\)/g) || []).map(x => flagOf(x.slice(1, -1))).join(''));
 const ELITE_RAW = [
@@ -259,7 +259,6 @@ const ELITE_RAW = [
   'BNET (ES)',
   'SATIM (CL)',
   'JOQERR (CL)',
-  'HRD (ARG)',
   'KLAN (ARG)',
   'STUART (ARG)',
   'KUSA (ARG)',
@@ -405,7 +404,46 @@ const ELITE_RAW = [
   'DOMINIC (MX)',
   'BTA (ES)',
   'SKIPER (MX)',
-  'GHOST (PE)'
+  'GHOST (PE)',
+  'ALKOY (AR)',
+  'SOEN (ES)',
+  'UNDERDANN (AR)',
+  'IBAI (ES)',
+  'KAPO 013 (ES)',
+  'PIRRY (ES)',
+  'NICKI NICOLE (AR)',
+  'KMC (CL)',
+  'AKAPELLAH (VE)',
+  'FRESCOLATE (AR)',
+  'MOWLIHAWK (ES)',
+  'LGIDO (ES)',
+  'CAQUIÑA (PE)',
+  'PEPE GRILLO (CL)',
+  'DAVISITO (ES)',
+  'HADRIAN (MX)',
+  'NIKI DMT (ES)',
+  'GARZA (MX)',
+  'JOKKER (CL)',
+  'BEELZE (AR)',
+  'PAULO LONDRA (AR)',
+  'ECKO (AR)',
+  'YSY A (AR)',
+  'MP (AR)',
+  'DAM (AR)',
+  'ELEKIPO (ES)',
+  'BOTTA (ES)',
+  'TOM CROWLEY (CL)',
+  'DRIXER (MX)',
+  'ARI CARRILLO (MX)',
+  'SATURNO (MX)',
+  'ONER (USA)',
+  'BLACKCODE (VE)',
+  'AUGE (AR)',
+  'RUSTY (AR)',
+  'INTERMITENTE46 (AR)',
+  'NEZ (ES)',
+  'NQP (ES)',
+  'LE33 (ES)'
 ];
 const ELITE_NAMES = ELITE_RAW.map(flagify);
 const POOL = { e: dedupe(ELITE_NAMES), f: dedupe(NAMES.f.map(flagify)), // los de TWB también llevan su país entre paréntesis en names.js: se muestra como bandera
